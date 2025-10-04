@@ -566,7 +566,7 @@ gimp_transform_grid_options_gui (GimpToolOptions *tool_options)
         { extend_mask, "constrain-move", N_("Move"),
           N_("Constrain movement to 45 degree angles from center (%s)") },
         { extend_mask, "constrain-scale", N_("Scale"),
-          N_("Maintain aspect ratio when scaling (%s)") },
+          N_("Temporarily maintain aspect ratio when scaling (%s)") },
         { extend_mask, "constrain-rotate", N_("Rotate"),
           N_("Constrain rotation to 15 degree increments (%s)") },
         { extend_mask, "constrain-shear", N_("Shear"),

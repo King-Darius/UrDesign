@@ -105,6 +105,8 @@ struct _GimpToolTransformGridPrivate
   gboolean               dynamic_handle_size;
   gboolean               constrain_move;
   gboolean               constrain_scale;
+  gboolean               constrain_scale_baseline;
+  gboolean               constrain_scale_modifier_active;
   gboolean               constrain_rotate;
   gboolean               constrain_shear;
   gboolean               constrain_perspective;
@@ -184,6 +186,9 @@ static void     gimp_tool_transform_grid_hover          (GimpToolWidget        *
                                                          GdkModifierType        state,
                                                          gboolean               proximity);
 static void     gimp_tool_transform_grid_leave_notify   (GimpToolWidget        *widget);
+static void     gimp_tool_transform_grid_modifier       (GimpToolWidget        *widget,
+                                                         GdkModifierType        key,
+                                                         gboolean               press);
 static void     gimp_tool_transform_grid_hover_modifier (GimpToolWidget        *widget,
                                                          GdkModifierType        key,
                                                          gboolean               press,
@@ -460,6 +465,8 @@ static void
 gimp_tool_transform_grid_init (GimpToolTransformGrid *grid)
 {
   grid->private = gimp_tool_transform_grid_get_instance_private (grid);
+
+  grid->private->constrain_scale_modifier_active = FALSE;
 }
 
 static void
@@ -472,6 +479,8 @@ gimp_tool_transform_grid_constructed (GObject *object)
   gint                          i;
 
   G_OBJECT_CLASS (parent_class)->constructed (object);
+
+  private->constrain_scale_baseline = private->constrain_scale;
 
   private->guides = gimp_tool_widget_add_transform_guides (widget,
                                                            &private->transform,
@@ -654,6 +663,8 @@ gimp_tool_transform_grid_set_property (GObject      *object,
       break;
     case PROP_CONSTRAIN_SCALE:
       private->constrain_scale = g_value_get_boolean (value);
+      if (! private->constrain_scale_modifier_active)
+        private->constrain_scale_baseline = private->constrain_scale;
       break;
     case PROP_CONSTRAIN_ROTATE:
       private->constrain_rotate = g_value_get_boolean (value);
@@ -2055,7 +2066,8 @@ gimp_tool_transform_grid_leave_notify (GimpToolWidget *widget)
 
 static void
 gimp_tool_transform_grid_modifier (GimpToolWidget  *widget,
-                                   GdkModifierType  key)
+                                   GdkModifierType  key,
+                                   gboolean         press)
 {
   GimpToolTransformGrid        *grid    = GIMP_TOOL_TRANSFORM_GRID (widget);
   GimpToolTransformGridPrivate *private = grid->private;
@@ -2070,10 +2082,23 @@ gimp_tool_transform_grid_modifier (GimpToolWidget  *widget,
     }
   else if (key == gimp_get_extend_selection_mask ())
     {
+      gboolean constrain_scale_value;
+
+      if (press)
+        {
+          private->constrain_scale_modifier_active = TRUE;
+          constrain_scale_value = TRUE;
+        }
+      else
+        {
+          private->constrain_scale_modifier_active = FALSE;
+          constrain_scale_value = private->constrain_scale_baseline;
+        }
+
       g_object_set (widget,
                     "cornersnap",            ! private->cornersnap,
                     "constrain-move",        ! private->constrain_move,
-                    "constrain-scale",       ! private->constrain_scale,
+                    "constrain-scale",       constrain_scale_value,
                     "constrain-rotate",      ! private->constrain_rotate,
                     "constrain-shear",       ! private->constrain_shear,
                     "constrain-perspective", ! private->constrain_perspective,
@@ -2091,7 +2116,7 @@ gimp_tool_transform_grid_hover_modifier (GimpToolWidget  *widget,
   GimpToolTransformGridPrivate *private = grid->private;
   GimpCoords                    coords  = { 0.0, };
 
-  gimp_tool_transform_grid_modifier (widget, key);
+  gimp_tool_transform_grid_modifier (widget, key, press);
 
   if (private->button_down)
     {
