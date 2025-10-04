@@ -68,6 +68,10 @@ enum
   PROP_TOOLBOX_IMAGE_AREA,
   PROP_TOOLBOX_WILBER,
   PROP_TOOLBOX_GROUPS,
+  PROP_TRANSFORM_HANDLE_SCALE,
+  PROP_TRANSFORM_ROTATION_HANDLE_OFFSET,
+  PROP_TRANSFORM_UNIFORM_SCALE_DEFAULT,
+  PROP_TRANSFORM_SCALE_FROM_CENTER_DEFAULT,
   PROP_THEME_PATH,
   PROP_THEME,
   PROP_THEME_SCHEME,
@@ -293,6 +297,37 @@ gimp_gui_config_class_init (GimpGuiConfigClass *klass)
                             "Use toolbox groups",
                             TOOLBOX_GROUPS_BLURB,
                             TRUE,
+                            GIMP_PARAM_STATIC_STRINGS);
+
+  GIMP_CONFIG_PROP_DOUBLE (object_class, PROP_TRANSFORM_HANDLE_SCALE,
+                           "transform-handle-scale",
+                           "Transform handle scale",
+                           TRANSFORM_HANDLE_SCALE_BLURB,
+                           0.5, 3.0, 1.15,
+                           GIMP_PARAM_STATIC_STRINGS);
+
+  GIMP_CONFIG_PROP_DOUBLE (object_class,
+                           PROP_TRANSFORM_ROTATION_HANDLE_OFFSET,
+                           "transform-rotation-handle-offset",
+                           "Transform rotation handle offset",
+                           TRANSFORM_ROTATION_HANDLE_OFFSET_BLURB,
+                           0.0, 128.0, 24.0,
+                           GIMP_PARAM_STATIC_STRINGS);
+
+  GIMP_CONFIG_PROP_BOOLEAN (object_class,
+                            PROP_TRANSFORM_UNIFORM_SCALE_DEFAULT,
+                            "transform-uniform-scale",
+                            "Transform uniform scale",
+                            TRANSFORM_UNIFORM_SCALE_DEFAULT_BLURB,
+                            TRUE,
+                            GIMP_PARAM_STATIC_STRINGS);
+
+  GIMP_CONFIG_PROP_BOOLEAN (object_class,
+                            PROP_TRANSFORM_SCALE_FROM_CENTER_DEFAULT,
+                            "transform-scale-from-center",
+                            "Transform scale from center",
+                            TRANSFORM_SCALE_FROM_CENTER_DEFAULT_BLURB,
+                            FALSE,
                             GIMP_PARAM_STATIC_STRINGS);
 
   path = gimp_config_build_data_path ("themes");
@@ -692,6 +727,18 @@ gimp_gui_config_set_property (GObject      *object,
     case PROP_TOOLBOX_GROUPS:
       gui_config->toolbox_groups = g_value_get_boolean (value);
       break;
+    case PROP_TRANSFORM_HANDLE_SCALE:
+      gui_config->transform_handle_scale = g_value_get_double (value);
+      break;
+    case PROP_TRANSFORM_ROTATION_HANDLE_OFFSET:
+      gui_config->transform_rotation_handle_offset = g_value_get_double (value);
+      break;
+    case PROP_TRANSFORM_UNIFORM_SCALE_DEFAULT:
+      gui_config->transform_uniform_scale_default = g_value_get_boolean (value);
+      break;
+    case PROP_TRANSFORM_SCALE_FROM_CENTER_DEFAULT:
+      gui_config->transform_scale_from_center_default = g_value_get_boolean (value);
+      break;
     case PROP_THEME_PATH:
       g_set_str (&gui_config->theme_path, g_value_get_string (value));
       break;
@@ -875,6 +922,20 @@ gimp_gui_config_get_property (GObject    *object,
       break;
     case PROP_TOOLBOX_GROUPS:
       g_value_set_boolean (value, gui_config->toolbox_groups);
+      break;
+    case PROP_TRANSFORM_HANDLE_SCALE:
+      g_value_set_double (value, gui_config->transform_handle_scale);
+      break;
+    case PROP_TRANSFORM_ROTATION_HANDLE_OFFSET:
+      g_value_set_double (value, gui_config->transform_rotation_handle_offset);
+      break;
+    case PROP_TRANSFORM_UNIFORM_SCALE_DEFAULT:
+      g_value_set_boolean (value,
+                           gui_config->transform_uniform_scale_default);
+      break;
+    case PROP_TRANSFORM_SCALE_FROM_CENTER_DEFAULT:
+      g_value_set_boolean (value,
+                           gui_config->transform_scale_from_center_default);
       break;
     case PROP_THEME_PATH:
       g_value_set_string (value, gui_config->theme_path);

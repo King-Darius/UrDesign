@@ -60,6 +60,10 @@ struct _GimpGuiConfig
   gboolean             toolbox_image_area;
   gboolean             toolbox_wilber;
   gboolean             toolbox_groups;
+  gdouble              transform_handle_scale;
+  gdouble              transform_rotation_handle_offset;
+  gboolean             transform_uniform_scale_default;
+  gboolean             transform_scale_from_center_default;
   gchar               *theme_path;
   gchar               *theme;
   GimpThemeScheme      theme_scheme;

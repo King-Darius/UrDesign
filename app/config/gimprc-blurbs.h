@@ -750,6 +750,18 @@ _("Show the currently selected brush, pattern and gradient in the toolbox.")
 #define TOOLBOX_GROUPS_BLURB \
 _("Use a single toolbox button for grouped tools.")
 
+#define TRANSFORM_HANDLE_SCALE_BLURB \
+_("Adjusts the scale used when drawing transform handles for selections and layers.")
+
+#define TRANSFORM_ROTATION_HANDLE_OFFSET_BLURB \
+_("Sets the distance between the transform box and its dedicated rotation handle.")
+
+#define TRANSFORM_UNIFORM_SCALE_DEFAULT_BLURB \
+_("Keeps transform scaling proportional by default when manipulating canvas handles.")
+
+#define TRANSFORM_SCALE_FROM_CENTER_DEFAULT_BLURB \
+_("Expands and contracts transforms from the pivot point unless a modifier overrides it.")
+
 #define TOOLBOX_IMAGE_AREA_BLURB \
 _("Show the currently active image in the toolbox.")
 

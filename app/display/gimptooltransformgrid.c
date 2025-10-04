@@ -33,10 +33,14 @@
 
 #include "core/gimp-transform-utils.h"
 #include "core/gimp-utils.h"
+#include "core/gimpdisplay.h"
+#include "config/gimpguiconfig.h"
+#include "core/gimp.h"
 
 #include "widgets/gimpwidgets-utils.h"
 
 #include "gimpcanvashandle.h"
+#include "gimpcanvasline.h"
 #include "gimpcanvastransformguides.h"
 #include "gimpdisplayshell.h"
 #include "gimptooltransformgrid.h"
@@ -69,6 +73,7 @@ enum
   PROP_USE_SHEAR_HANDLES,
   PROP_USE_CENTER_HANDLE,
   PROP_USE_PIVOT_HANDLE,
+  PROP_USE_ROTATION_HANDLE,
   PROP_DYNAMIC_HANDLE_SIZE,
   PROP_CONSTRAIN_MOVE,
   PROP_CONSTRAIN_SCALE,
@@ -102,6 +107,7 @@ struct _GimpToolTransformGridPrivate
   gboolean               use_shear_handles;
   gboolean               use_center_handle;
   gboolean               use_pivot_handle;
+  gboolean               use_rotation_handle;
   gboolean               dynamic_handle_size;
   gboolean               constrain_move;
   gboolean               constrain_scale;
@@ -147,6 +153,10 @@ struct _GimpToolTransformGridPrivate
   GimpCanvasItem        *handles[GIMP_N_TRANSFORM_HANDLES];
   GimpCanvasItem        *center_items[2];
   GimpCanvasItem        *pivot_items[2];
+  GimpCanvasItem        *rotation_indicator;
+  GimpCanvasItem        *rotation_handle;
+
+  gdouble                rotation_handle_distance;
 };
 
 
@@ -210,6 +220,9 @@ static void     gimp_tool_transform_grid_update_matrix  (GimpToolTransformGrid *
 static void     gimp_tool_transform_grid_calc_handles   (GimpToolTransformGrid *grid,
                                                          gint                  *handle_w,
                                                          gint                  *handle_h);
+static void     gimp_tool_transform_grid_query_style    (GimpToolTransformGrid *grid,
+                                                         gdouble               *handle_scale,
+                                                         gdouble               *rotation_offset);
 
 
 G_DEFINE_TYPE_WITH_PRIVATE (GimpToolTransformGrid, gimp_tool_transform_grid,
@@ -380,6 +393,13 @@ gimp_tool_transform_grid_class_init (GimpToolTransformGridClass *klass)
                                    g_param_spec_boolean ("use-pivot-handle",
                                                          NULL, NULL,
                                                          FALSE,
+                                                         GIMP_PARAM_READWRITE |
+                                                         G_PARAM_CONSTRUCT));
+
+  g_object_class_install_property (object_class, PROP_USE_ROTATION_HANDLE,
+                                   g_param_spec_boolean ("use-rotation-handle",
+                                                         NULL, NULL,
+                                                         TRUE,
                                                          GIMP_PARAM_READWRITE |
                                                          G_PARAM_CONSTRUCT));
 
@@ -565,6 +585,45 @@ gimp_tool_transform_grid_constructed (GObject *object)
 
   gimp_tool_widget_pop_group (widget);
 
+  /*  draw the dedicated rotation handle  */
+  stroke_group = gimp_tool_widget_add_stroke_group (widget);
+
+  private->handles[GIMP_TRANSFORM_HANDLE_ROTATION] =
+    GIMP_CANVAS_ITEM (stroke_group);
+
+  gimp_tool_widget_push_group (widget, stroke_group);
+
+  private->rotation_indicator =
+    gimp_tool_widget_add_line (widget, 0, 0, 0, 0);
+  private->rotation_handle =
+    gimp_tool_widget_add_handle (widget,
+                                 GIMP_HANDLE_FILLED_CIRCLE,
+                                 0, 0, 10, 10,
+                                 GIMP_HANDLE_ANCHOR_CENTER);
+
+  gimp_tool_widget_pop_group (widget);
+
+  {
+    GimpDisplayShell *shell = gimp_tool_widget_get_shell (widget);
+
+    if (shell && shell->display)
+      {
+        Gimp *gimp = gimp_display_get_gimp (shell->display);
+
+        if (gimp && gimp->config)
+          {
+            GimpGuiConfig *gui_config = GIMP_GUI_CONFIG (gimp->config);
+
+            g_object_set (grid,
+                          "constrain-scale",
+                          gui_config->transform_uniform_scale_default,
+                          "frompivot-scale",
+                          gui_config->transform_scale_from_center_default,
+                          NULL);
+          }
+      }
+  }
+
   gimp_tool_transform_grid_changed (widget);
 }
 
@@ -652,6 +711,9 @@ gimp_tool_transform_grid_set_property (GObject      *object,
       break;
     case PROP_USE_PIVOT_HANDLE:
       private->use_pivot_handle = g_value_get_boolean (value);
+      break;
+    case PROP_USE_ROTATION_HANDLE:
+      private->use_rotation_handle = g_value_get_boolean (value);
       break;
 
     case PROP_DYNAMIC_HANDLE_SIZE:
@@ -777,6 +839,9 @@ gimp_tool_transform_grid_get_property (GObject    *object,
       break;
     case PROP_USE_PIVOT_HANDLE:
       g_value_set_boolean (value, private->use_pivot_handle);
+      break;
+    case PROP_USE_ROTATION_HANDLE:
+      g_value_set_boolean (value, private->use_rotation_handle);
       break;
 
     case PROP_DYNAMIC_HANDLE_SIZE:
@@ -1220,6 +1285,48 @@ gimp_tool_transform_grid_changed (GimpToolWidget *widget)
       gimp_canvas_handle_set_angles (private->center_items[1], angle[8], 0.0);
     }
 
+  gimp_canvas_item_set_visible (private->handles[GIMP_TRANSFORM_HANDLE_ROTATION],
+                                private->use_rotation_handle);
+
+  if (private->rotation_indicator)
+    gimp_canvas_item_set_visible (private->rotation_indicator,
+                                  private->use_rotation_handle);
+  if (private->rotation_handle)
+    gimp_canvas_item_set_visible (private->rotation_handle,
+                                  private->use_rotation_handle);
+
+  if (private->use_rotation_handle &&
+      private->rotation_indicator &&
+      private->rotation_handle)
+    {
+      GimpVector2 direction;
+      GimpVector2 anchor;
+      gdouble     distance;
+      gdouble     length;
+
+      direction = vectorsubtract (t[0], (GimpVector2) { private->tcx, private->tcy });
+      length = norm (direction);
+
+      if (length > 0.0)
+        direction = scalemult (direction, 1.0 / length);
+      else
+        direction = (GimpVector2) { 0.0, -1.0 };
+
+      distance = MAX (0.0, private->rotation_handle_distance);
+      anchor = vectoradd (t[0],
+                          scalemult (direction,
+                                     distance + MAX (handle_w, handle_h) * 0.5));
+
+      gimp_canvas_line_set (private->rotation_indicator,
+                            private->tcx, private->tcy,
+                            anchor.x,      anchor.y);
+      gimp_canvas_handle_set_position (private->rotation_handle,
+                                       anchor.x, anchor.y);
+      gimp_canvas_handle_set_size (private->rotation_handle,
+                                   handle_w, handle_h);
+      gimp_canvas_handle_set_angles (private->rotation_handle, angle[4], 0.0);
+    }
+
   gimp_tool_transform_grid_update_hilight (grid);
 }
 
@@ -1252,6 +1359,10 @@ gimp_tool_transform_grid_button_press (GimpToolWidget      *widget,
 
             case GIMP_TRANSFORM_HANDLE_PIVOT:
               handle = private->pivot_items[0];
+              break;
+
+            case GIMP_TRANSFORM_HANDLE_ROTATION:
+              handle = private->rotation_handle;
               break;
 
              default:
@@ -2444,6 +2555,10 @@ gimp_tool_transform_grid_calc_handles (GimpToolTransformGrid *grid,
                                        gint                  *handle_h)
 {
   GimpToolTransformGridPrivate *private = grid->private;
+  gdouble                       handle_scale = 1.0;
+  gdouble                       rotation_offset = 0.0;
+  gint                          base_w;
+  gint                          base_h;
   gint                          dx1, dy1;
   gint                          dx2, dy2;
   gint                          dx3, dy3;
@@ -2453,34 +2568,79 @@ gimp_tool_transform_grid_calc_handles (GimpToolTransformGrid *grid,
 
   if (! private->dynamic_handle_size)
     {
-      *handle_w = GIMP_CANVAS_HANDLE_SIZE_LARGE;
-      *handle_h = GIMP_CANVAS_HANDLE_SIZE_LARGE;
+      base_w = GIMP_CANVAS_HANDLE_SIZE_LARGE;
+      base_h = GIMP_CANVAS_HANDLE_SIZE_LARGE;
+    }
+  else
+    {
+      gimp_canvas_item_transform_xy (private->guides,
+                                     private->tx1, private->ty1,
+                                     &dx1, &dy1);
+      gimp_canvas_item_transform_xy (private->guides,
+                                     private->tx2, private->ty2,
+                                     &dx2, &dy2);
+      gimp_canvas_item_transform_xy (private->guides,
+                                     private->tx3, private->ty3,
+                                     &dx3, &dy3);
+      gimp_canvas_item_transform_xy (private->guides,
+                                     private->tx4, private->ty4,
+                                     &dx4, &dy4);
 
-      return;
+      x1 = MIN4 (dx1, dx2, dx3, dx4);
+      y1 = MIN4 (dy1, dy2, dy3, dy4);
+      x2 = MAX4 (dx1, dx2, dx3, dx4);
+      y2 = MAX4 (dy1, dy2, dy3, dy4);
+
+      base_w = CLAMP ((x2 - x1) / 3,
+                      MIN_HANDLE_SIZE, GIMP_CANVAS_HANDLE_SIZE_LARGE);
+      base_h = CLAMP ((y2 - y1) / 3,
+                      MIN_HANDLE_SIZE, GIMP_CANVAS_HANDLE_SIZE_LARGE);
     }
 
-  gimp_canvas_item_transform_xy (private->guides,
-                                 private->tx1, private->ty1,
-                                 &dx1, &dy1);
-  gimp_canvas_item_transform_xy (private->guides,
-                                 private->tx2, private->ty2,
-                                 &dx2, &dy2);
-  gimp_canvas_item_transform_xy (private->guides,
-                                 private->tx3, private->ty3,
-                                 &dx3, &dy3);
-  gimp_canvas_item_transform_xy (private->guides,
-                                 private->tx4, private->ty4,
-                                 &dx4, &dy4);
+  gimp_tool_transform_grid_query_style (grid, &handle_scale, &rotation_offset);
 
-  x1 = MIN4 (dx1, dx2, dx3, dx4);
-  y1 = MIN4 (dy1, dy2, dy3, dy4);
-  x2 = MAX4 (dx1, dx2, dx3, dx4);
-  y2 = MAX4 (dy1, dy2, dy3, dy4);
+  private->rotation_handle_distance = rotation_offset;
 
-  *handle_w = CLAMP ((x2 - x1) / 3,
-                     MIN_HANDLE_SIZE, GIMP_CANVAS_HANDLE_SIZE_LARGE);
-  *handle_h = CLAMP ((y2 - y1) / 3,
-                     MIN_HANDLE_SIZE, GIMP_CANVAS_HANDLE_SIZE_LARGE);
+  *handle_w = CLAMP ((gint) ((gdouble) base_w * handle_scale + 0.5),
+                     MIN_HANDLE_SIZE,
+                     (gint) GIMP_TOOL_TRANSFORM_GRID_MAX_HANDLE_SIZE);
+  *handle_h = CLAMP ((gint) ((gdouble) base_h * handle_scale + 0.5),
+                     MIN_HANDLE_SIZE,
+                     (gint) GIMP_TOOL_TRANSFORM_GRID_MAX_HANDLE_SIZE);
+}
+
+static void
+gimp_tool_transform_grid_query_style (GimpToolTransformGrid *grid,
+                                      gdouble               *handle_scale,
+                                      gdouble               *rotation_offset)
+{
+  GimpDisplayShell *shell;
+  Gimp             *gimp;
+  GimpGuiConfig    *gui_config;
+
+  g_return_if_fail (GIMP_IS_TOOL_TRANSFORM_GRID (grid));
+
+  if (handle_scale)
+    *handle_scale = 1.0;
+
+  if (rotation_offset)
+    *rotation_offset = 24.0;
+
+  shell = gimp_tool_widget_get_shell (GIMP_TOOL_WIDGET (grid));
+  if (! shell || ! shell->display)
+    return;
+
+  gimp = gimp_display_get_gimp (shell->display);
+  if (! gimp || ! gimp->config)
+    return;
+
+  gui_config = GIMP_GUI_CONFIG (gimp->config);
+
+  if (handle_scale)
+    *handle_scale = CLAMP (gui_config->transform_handle_scale, 0.5, 3.0);
+
+  if (rotation_offset)
+    *rotation_offset = MAX (0.0, gui_config->transform_rotation_handle_offset);
 }
 
 
