@@ -1,103 +1,117 @@
+# UrDesign
 
-This Fork is aimed at a feature complete Top-down design philosophy version of GIMP with a focus on UX, UI and the expected industry standard.
+UrDesign is a user-experience-led creative suite that unifies professional
+photo development, vector illustration, layout design, motion graphics, and
+automation into a single, cohesive workspace. The project reimagines GIMP's
+core with tactile feedback, modern interaction patterns, and a roadmap aimed at
+feature parity with industry-standard multidisciplinary studios—while remaining
+open, extensible, and community-driven.
 
+## Experience pillars
 
-------------------------------
-                   GNU Image Manipulation Program
-                        3.1 Development Branch
-                   ------------------------------
+* **Flow-first UX** – panels, palettes, and command surfaces adapt to task
+  context, enabling frictionless transitions between sketching, compositing,
+  typography, and export preparation.
+* **Predictable transforms** – bounding boxes, proportional constraints, smart
+  snapping, and pivot controls deliver immediate feedback for scale, rotate,
+  shear, perspective, and warp operations.
+* **Living documents** – combined raster/vector layers, non-destructive effect
+  stacks, reusable styles, linked assets, and collaborative presets ensure
+  parity across imaging, illustration, and layout workflows.
+* **Studio-ready delivery** – export pipelines ship with gamut warnings, motion
+  previews, packaging templates, metadata tooling, and batch automation for
+  both digital and print campaigns.
 
-This is an unstable development release in the GIMP 3.1 series.
+## Transform canvas enhancements
 
-If you think you found a bug in this version, please make sure that it
-hasn't been reported earlier and that it is not just new stuff that is
-still being worked on and obviously not quite finished yet. If neither
-of these, please report it!
+The current development cycle introduces a refreshed on-canvas transform UI:
 
-If you want to hack on GIMP, please read the file devel-docs/README.md.
-For detailed installation instructions, see the file INSTALL.
+* **Dedicated rotation handle** – a floating, guide-connected control sits
+  beyond the active bounds for precise angular sweeps without occluding the
+  artwork.
+* **Handle scaling preferences** – configurable sizing keeps corner, edge, and
+  pivot handles comfortable across high-resolution and HiDPI canvases.
+* **Proportional resize by default** – corner drags preserve aspect ratios and
+  can be toggled per interaction with the standard modifier workflow.
+* **Responsive indicator line** – a connective stroke between pivot and
+  rotation handle clarifies active axes and helps the eye track adjustments.
+* **Context-aware highlighting** – hover states and snapping feedback respond to
+  the upgraded handle geometry for confident manipulation.
 
+These refinements lay the groundwork for additional transform overlays such as
+constraint widgets, numerical popovers, and tablet-friendly gesture ribbons.
 
-1. Web Resources
-================
+## Feature completeness roadmap
 
-GIMP's home page is at:
+UrDesign pursues parity across raster, vector, and layout disciplines. Active
+milestones include:
 
-	https://www.gimp.org/
+| Pillar | In-Progress Focus | Placeholder Modules |
+| ------ | ----------------- | ------------------- |
+| Raster Lab | Non-destructive adjustments, live masks, unified tone mapper | `app/tools/` painting updates, GPU-accelerated filters |
+| Vector Studio | Parametric shapes, boolean operations, adaptive stroke profile panel | `app/vectors/` overlay scaffolding |
+| Layout Board | Artboard management, typography grids, responsive export presets | `app/display/` multi-surface shell enhancements |
+| Motion & Automation | Keyframe timelines, scripted batch operations, reusable macros | `plug-ins/` animation runners, action API extensions |
 
-Please be sure to visit this site for information, documentation,
-tutorials, news, etc. All things GIMP-ish are available from there.
+Many modules expose placeholder widgets and configuration toggles today so
+contributors can iterate feature-by-feature without destabilizing the broader
+application.
 
-The latest version of GIMP can be found at:
+## Getting started
 
-	https://www.gimp.org/downloads/
+UrDesign tracks the 3.1 development branch and uses the Meson build system.
 
-We also have a website dedicated to documentation at:
+```bash
+meson setup build
+ninja -C build
+ninja -C build install
+```
 
-        https://docs.gimp.org/
+Detailed platform notes and dependency requirements live in
+[`INSTALL.in`](INSTALL.in). The default build type is `debugoptimized`, which
+balances runtime performance with approachable debugging.
 
+## Configuration & customization
 
-2. Contributing
-===============
+UrDesign honors GTK theming and offers granular tuning in the user preferences
+file (`~/.config/UrDesign/3.0/gimprc`). Notable additions include:
 
-GIMP source code can be found at:
+* `transform-handle-scale` – enlarges or shrinks transform handles globally for
+  touch and HiDPI workflows.
+* `transform-rotation-handle-offset` – positions the dedicated rotation handle
+  further from or closer to the active bounding box.
+* `transform-uniform-scale` – locks transform handles to proportional scaling
+  unless a modifier key temporarily disables it.
+* `transform-scale-from-center` – expands or contracts from the pivot point by
+  default when enabled.
 
-	https://gitlab.gnome.org/GNOME/gimp/
+Additional personalization options:
 
-Resources for contributors:
+* Global tweaks via `${XDG_CONFIG_HOME}/gtk-3.0/` (e.g. `settings.ini`,
+  `gtk.css`).
+* Application overrides via `${XDG_CONFIG_HOME}/UrDesign/3.0/urdesign.css`.
+* Custom shortcuts in `${XDG_CONFIG_HOME}/UrDesign/3.0/shortcutsrc`.
 
-        https://developer.gimp.org/
+## Contributing
 
-In particular, you may want to look in the "Core Development" section. Some
-articles of particular interest for newcomers could be:
+We welcome contributions across design, engineering, documentation, and quality
+assurance.
 
-* Setting up your developer environment: https://developer.gimp.org/core/setup/
-* GIMP Coding Style: https://developer.gimp.org/core/coding_style/
-* Submit your first patch: https://developer.gimp.org/core/submit-patch/
+1. Review the coding guidelines in `devel-docs/README.md` and roadmap briefs in
+   the issue tracker.
+2. Use feature branches and follow Meson formatting conventions.
+3. Submit merge requests with before/after context, UX rationale, and relevant
+   tests.
 
+New contributors can explore open issues labeled "good first task" and join
+community syncs announced in `NEWS` and on the project portal. A detailed
+multi-disciplinary roadmap lives in [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
-3. Discussion Channels
-======================
+## Community
 
-We have several discussion channels dedicated to GIMP user and
-development discussion. There is more info at:
+Real-time chat, forums, and project announcements are coordinated through our
+community portal. Links to discussion channels, archived conversations, and
+contributor meetings are published in `NEWS` and on the website.
 
-        https://www.gimp.org/discuss.html
-
-For the real junkies, there are IRC channels (e.g. #gimp or #gimp-user)
-devoted to GIMP on GIMPNet (a private free software oriented network).
-Many of the developers hang out there. Some of the GIMPNet servers are:
-
-	irc.gimp.org:6667
-	irc.us.gimp.org:6667
-	irc.eu.gimp.org:6667
-
-More discussion channels, such as forums, will be listed on the above
-"discuss" page when they are moderated by a team member.
-Links to archives of former discussion methods (e.g. mailing lists) are
-also included in that page.
-
-4. Customizing
-==============
-
-The look of GIMP's interface can be customized like any other GTK+ app
-by editing files in `${XDG_CONFIG_HOME}/gtk-3.0/` (settings.ini and
-gtk.css in particular) or by using "themes" (ready-made customizations).
-Additionally, GIMP reads `${XDG_CONFIG_HOME}/GIMP/3.0/gimp.css` so you
-can have settings that only apply to GIMP.
-
-You can also manually change the keybindings to any of your choice by
-editing: `${XDG_CONFIG_HOME}/GIMP/3.0/shortcutsrc`.
-
-
-Have fun,
-
-  Spencer Kimball
-  Peter Mattis
-  Federico Mena
-  Manish Singh
-  Sven Neumann
-  Michael Natterer
-  Dave Neary
-  Martin Nordholts
-  Jehan
+Experiment, iterate, and share your findings—UrDesign grows through its
+community of creators.
