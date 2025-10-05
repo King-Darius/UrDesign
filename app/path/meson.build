@@ -6,6 +6,7 @@ libapppath_sources = [
   'gimppath-export.c',
   'gimppath-import.c',
   'gimppath-preview.c',
+  'gimppathboolean.c',
   'gimppath-warp.c',
   'gimppathmodundo.c',
   'gimppathpropundo.c',

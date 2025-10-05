@@ -70,6 +70,7 @@
 #include "gimplevelstool.h"
 #include "gimpoperationtool.h"
 #include "gimppathtool.h"
+#include "gimpshapefusiontool.h"
 #include "gimpmagnifytool.h"
 #include "gimpmeasuretool.h"
 #include "gimpmovetool.h"
@@ -148,6 +149,7 @@ gimp_tools_init (Gimp *gimp)
     /*  path tool */
 
     gimp_path_tool_register,
+    gimp_shape_fusion_tool_register,
 
     /*  non-modifying tools  */
 
