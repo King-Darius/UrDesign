@@ -36,7 +36,8 @@ complex_plugins_list = [
   { 'name': 'print', },
   { 'name': 'screenshot', },
   { 'name': 'script-fu', },
-  { 'name': 'selection-to-path', }
+  { 'name': 'selection-to-path', },
+  { 'name': 'intelleselect', }
 ]
 
 if openexr.found()

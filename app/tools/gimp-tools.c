@@ -51,6 +51,7 @@
 #include "gimpclonetool.h"
 #include "gimpcolorpickertool.h"
 #include "gimpconvolvetool.h"
+#include "gimpcornersculpttool.h"
 #include "gimpcroptool.h"
 #include "gimpcurvestool.h"
 #include "gimpdodgeburntool.h"
@@ -74,6 +75,7 @@
 #include "gimpmovetool.h"
 #include "gimpmybrushtool.h"
 #include "gimpnpointdeformationtool.h"
+#include "gimpintelliselecttool.h"
 #include "gimpoffsettool.h"
 #include "gimppaintbrushtool.h"
 #include "gimppaintselecttool.h"
@@ -83,6 +85,7 @@
 #include "gimpthresholdtool.h"
 #include "gimprectangleselecttool.h"
 #include "gimprotatetool.h"
+#include "gimpshapefusiontool.h"
 #include "gimpseamlessclonetool.h"
 #include "gimpscaletool.h"
 #include "gimpsheartool.h"
@@ -141,11 +144,14 @@ gimp_tools_init (Gimp *gimp)
     gimp_by_color_select_tool_register,
     gimp_iscissors_tool_register,
     gimp_foreground_select_tool_register,
+    gimp_intelli_select_tool_register,
     gimp_paint_select_tool_register,
 
     /*  path tool */
 
     gimp_path_tool_register,
+    gimp_corner_sculpt_tool_register,
+    gimp_shape_fusion_tool_register,
 
     /*  non-modifying tools  */
 
