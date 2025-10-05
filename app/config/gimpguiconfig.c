@@ -97,6 +97,8 @@ enum
   PROP_PLAYGROUND_SEAMLESS_CLONE_TOOL,
   PROP_PLAYGROUND_PAINT_SELECT_TOOL,
   PROP_PLAYGROUND_USE_LIST_BOX,
+  PROP_INTELLISELECT_MODEL,
+  PROP_INTELLISELECT_BACKEND,
 
   PROP_HIDE_DOCKS,
   PROP_SINGLE_WINDOW_MODE,
@@ -514,6 +516,22 @@ gimp_gui_config_class_init (GimpGuiConfigClass *klass)
                             FALSE,
                             GIMP_PARAM_STATIC_STRINGS);
 
+  GIMP_CONFIG_PROP_STRING (object_class,
+                           PROP_INTELLISELECT_MODEL,
+                           "intelliselect-model",
+                           "Default IntelliSelect model identifier",
+                           N_("Model identifier used by the Intelligent Select tool."),
+                           "builtin-default",
+                           GIMP_PARAM_STATIC_STRINGS);
+
+  GIMP_CONFIG_PROP_STRING (object_class,
+                           PROP_INTELLISELECT_BACKEND,
+                           "intelliselect-backend",
+                           "Default IntelliSelect backend identifier",
+                           N_("Preferred hardware backend for Intelligent Select inference."),
+                           "auto",
+                           GIMP_PARAM_STATIC_STRINGS);
+
   g_object_class_install_property (object_class, PROP_HIDE_DOCKS,
                                    g_param_spec_boolean ("hide-docks",
                                                          NULL,
@@ -636,6 +654,8 @@ gimp_gui_config_class_init (GimpGuiConfigClass *klass)
 static void
 gimp_gui_config_init (GimpGuiConfig *config)
 {
+  config->intelliselect_model   = g_strdup ("builtin-default");
+  config->intelliselect_backend = g_strdup ("auto");
 }
 
 static void
@@ -649,6 +669,8 @@ gimp_gui_config_finalize (GObject *object)
   g_clear_pointer (&gui_config->icon_theme,             g_free);
   g_clear_pointer (&gui_config->help_locales,           g_free);
   g_clear_pointer (&gui_config->user_manual_online_uri, g_free);
+  g_clear_pointer (&gui_config->intelliselect_model,    g_free);
+  g_clear_pointer (&gui_config->intelliselect_backend,  g_free);
 
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
@@ -811,6 +833,14 @@ gimp_gui_config_set_property (GObject      *object,
       break;
     case PROP_PLAYGROUND_USE_LIST_BOX:
       gui_config->playground_use_list_box = g_value_get_boolean (value);
+      break;
+    case PROP_INTELLISELECT_MODEL:
+      g_free (gui_config->intelliselect_model);
+      gui_config->intelliselect_model = g_value_dup_string (value);
+      break;
+    case PROP_INTELLISELECT_BACKEND:
+      g_free (gui_config->intelliselect_backend);
+      gui_config->intelliselect_backend = g_value_dup_string (value);
       break;
 
     case PROP_HIDE_DOCKS:
@@ -1009,6 +1039,12 @@ gimp_gui_config_get_property (GObject    *object,
       break;
     case PROP_PLAYGROUND_USE_LIST_BOX:
       g_value_set_boolean (value, gui_config->playground_use_list_box);
+      break;
+    case PROP_INTELLISELECT_MODEL:
+      g_value_set_string (value, gui_config->intelliselect_model);
+      break;
+    case PROP_INTELLISELECT_BACKEND:
+      g_value_set_string (value, gui_config->intelliselect_backend);
       break;
 
     case PROP_HIDE_DOCKS:

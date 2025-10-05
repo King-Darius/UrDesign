@@ -60,6 +60,7 @@
 #include "gimpfreeselecttool.h"
 #include "gimpforegroundselecttool.h"
 #include "gimpfuzzyselecttool.h"
+#include "gimpintelliselecttool.h"
 #include "gimpgegltool.h"
 #include "gimpgradienttool.h"
 #include "gimphandletransformtool.h"
@@ -142,6 +143,7 @@ gimp_tools_init (Gimp *gimp)
     gimp_iscissors_tool_register,
     gimp_foreground_select_tool_register,
     gimp_paint_select_tool_register,
+    gimp_intelli_select_tool_register,
 
     /*  path tool */
 

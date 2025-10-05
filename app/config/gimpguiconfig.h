@@ -92,6 +92,9 @@ struct _GimpGuiConfig
   gboolean             playground_paint_select_tool;
   gboolean             playground_use_list_box;
 
+  gchar               *intelliselect_model;
+  gchar               *intelliselect_backend;
+
   /* saved in sessionrc */
   gboolean             hide_docks;
   gboolean             single_window_mode;
