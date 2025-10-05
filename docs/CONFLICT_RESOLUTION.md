@@ -65,7 +65,17 @@ existing commits. Pick the approach your collaborators prefer.
    incoming changes from main
    >>>>>>> origin/main
    ```
-2. Decide what the final text should be. You can keep either side or combine
+2. Read both versions before deciding what stays. The lines between `<<<<<<<`
+   and `=======` show what currently exists on **your branch**. The lines
+   between `=======` and `>>>>>>>` show what comes from the **other branch** you
+   are merging. If the block is long, run the following command to compare the
+   two versions in a temporary view without editing anything yet:
+   ```bash
+   git diff --color-words --ours --theirs -- <file-name>
+   ```
+   This prints the differences between your branch (`--ours`) and the incoming
+   branch (`--theirs`) so you can read both in plain language.
+3. Decide what the final text should be. You can keep either side or combine
    them—just remove the `<<<<<<<`, `=======`, and `>>>>>>>` markers afterwards.
 3. Save the file once it shows the intended content.
 4. When all conflicts are resolved, stage the files:
