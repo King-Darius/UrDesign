@@ -43,6 +43,7 @@ app_tests = [
   'transform-grid',
   'ui',
   'xcf',
+  'shape-fusion',
 ]
 
 # Prevent parallel builds for the tests

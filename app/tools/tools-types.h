@@ -35,6 +35,7 @@ typedef struct _GimpCornerSculptTool         GimpCornerSculptTool;
 typedef struct _GimpPaintTool                GimpPaintTool;
 typedef struct _GimpTransformGridTool        GimpTransformGridTool;
 typedef struct _GimpTransformTool            GimpTransformTool;
+typedef struct _GimpShapeFusionTool          GimpShapeFusionTool;
 
 typedef struct _GimpColorOptions             GimpColorOptions;
 typedef struct _GimpFilterOptions            GimpFilterOptions;

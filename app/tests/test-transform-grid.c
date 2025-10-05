@@ -71,7 +71,12 @@ run_modifier_cycle (Gimp     *gimp,
   GimpToolWidget   *widget;
   GimpMatrix3       transform;
   GdkModifierType   extend_mask;
+  gboolean          cornersnap;
+  gboolean          constrain_move;
   gboolean          constrain_scale;
+  gboolean          constrain_rotate;
+  gboolean          constrain_shear;
+  gboolean          constrain_perspective;
 
   gimp_test_utils_create_image (gimp, GRID_WIDTH, GRID_HEIGHT);
   gimp_test_run_mainloop_until_idle ();
@@ -88,31 +93,94 @@ run_modifier_cycle (Gimp     *gimp,
                                          GRID_HEIGHT);
 
   g_object_set (widget,
-                "constrain-scale", baseline,
+                "cornersnap",            baseline,
+                "constrain-move",        baseline,
+                "constrain-scale",       baseline,
+                "constrain-rotate",      baseline,
+                "constrain-shear",       baseline,
+                "constrain-perspective", baseline,
                 NULL);
   g_object_get (widget,
-                "constrain-scale", &constrain_scale,
+                "cornersnap",            &cornersnap,
+                "constrain-move",        &constrain_move,
+                "constrain-scale",       &constrain_scale,
+                "constrain-rotate",      &constrain_rotate,
+                "constrain-shear",       &constrain_shear,
+                "constrain-perspective", &constrain_perspective,
                 NULL);
+  g_assert_cmpint (cornersnap, ==, baseline);
+  g_assert_cmpint (constrain_move, ==, baseline);
   g_assert_cmpint (constrain_scale, ==, baseline);
+  g_assert_cmpint (constrain_rotate, ==, baseline);
+  g_assert_cmpint (constrain_shear, ==, baseline);
+  g_assert_cmpint (constrain_perspective, ==, baseline);
 
   extend_mask = gimp_get_extend_selection_mask ();
 
   gimp_tool_widget_hover_modifier (widget, extend_mask, TRUE, extend_mask);
-  g_object_get (widget, "constrain-scale", &constrain_scale, NULL);
+  g_object_get (widget,
+                "cornersnap",            &cornersnap,
+                "constrain-move",        &constrain_move,
+                "constrain-scale",       &constrain_scale,
+                "constrain-rotate",      &constrain_rotate,
+                "constrain-shear",       &constrain_shear,
+                "constrain-perspective", &constrain_perspective,
+                NULL);
+  g_assert_cmpint (cornersnap, ==, ! baseline);
+  g_assert_cmpint (constrain_move, ==, ! baseline);
   g_assert_true (constrain_scale);
+  g_assert_cmpint (constrain_rotate, ==, ! baseline);
+  g_assert_cmpint (constrain_shear, ==, ! baseline);
+  g_assert_cmpint (constrain_perspective, ==, ! baseline);
 
   gimp_tool_widget_hover_modifier (widget, extend_mask, FALSE, 0);
-  g_object_get (widget, "constrain-scale", &constrain_scale, NULL);
+  g_object_get (widget,
+                "cornersnap",            &cornersnap,
+                "constrain-move",        &constrain_move,
+                "constrain-scale",       &constrain_scale,
+                "constrain-rotate",      &constrain_rotate,
+                "constrain-shear",       &constrain_shear,
+                "constrain-perspective", &constrain_perspective,
+                NULL);
+  g_assert_cmpint (cornersnap, ==, baseline);
+  g_assert_cmpint (constrain_move, ==, baseline);
   g_assert_cmpint (constrain_scale, ==, baseline);
+  g_assert_cmpint (constrain_rotate, ==, baseline);
+  g_assert_cmpint (constrain_shear, ==, baseline);
+  g_assert_cmpint (constrain_perspective, ==, baseline);
 
   /* Verify that a subsequent cycle leaves the baseline intact. */
   gimp_tool_widget_hover_modifier (widget, extend_mask, TRUE, extend_mask);
-  g_object_get (widget, "constrain-scale", &constrain_scale, NULL);
+  g_object_get (widget,
+                "cornersnap",            &cornersnap,
+                "constrain-move",        &constrain_move,
+                "constrain-scale",       &constrain_scale,
+                "constrain-rotate",      &constrain_rotate,
+                "constrain-shear",       &constrain_shear,
+                "constrain-perspective", &constrain_perspective,
+                NULL);
+  g_assert_cmpint (cornersnap, ==, ! baseline);
+  g_assert_cmpint (constrain_move, ==, ! baseline);
   g_assert_true (constrain_scale);
+  g_assert_cmpint (constrain_rotate, ==, ! baseline);
+  g_assert_cmpint (constrain_shear, ==, ! baseline);
+  g_assert_cmpint (constrain_perspective, ==, ! baseline);
 
   gimp_tool_widget_hover_modifier (widget, extend_mask, FALSE, 0);
-  g_object_get (widget, "constrain-scale", &constrain_scale, NULL);
+  g_object_get (widget,
+                "cornersnap",            &cornersnap,
+                "constrain-move",        &constrain_move,
+                "constrain-scale",       &constrain_scale,
+                "constrain-rotate",      &constrain_rotate,
+                "constrain-shear",       &constrain_shear,
+                "constrain-perspective", &constrain_perspective,
+                NULL);
+  g_assert_cmpint (cornersnap, ==, baseline);
+  g_assert_cmpint (constrain_move, ==, baseline);
   g_assert_cmpint (constrain_scale, ==, baseline);
+  g_assert_cmpint (constrain_rotate, ==, baseline);
+  g_assert_cmpint (constrain_shear, ==, baseline);
+  g_assert_cmpint (constrain_perspective, ==, baseline);
 
   g_object_unref (widget);
 
