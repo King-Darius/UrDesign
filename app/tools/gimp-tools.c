@@ -62,6 +62,7 @@
 #include "gimpfuzzyselecttool.h"
 #include "gimpgegltool.h"
 #include "gimpgradienttool.h"
+#include "gimpcornersculpttool.h"
 #include "gimphandletransformtool.h"
 #include "gimphealtool.h"
 #include "gimpinktool.h"
@@ -143,9 +144,10 @@ gimp_tools_init (Gimp *gimp)
     gimp_foreground_select_tool_register,
     gimp_paint_select_tool_register,
 
-    /*  path tool */
+    /*  path tools */
 
     gimp_path_tool_register,
+    gimp_corner_sculpt_tool_register,
 
     /*  non-modifying tools  */
 

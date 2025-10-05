@@ -271,6 +271,7 @@ static void
 gimp_stroke_init (GimpStroke *stroke)
 {
   stroke->anchors = g_queue_new ();
+  stroke->corner_specs = g_array_new (FALSE, FALSE, sizeof (GimpStrokeCorner));
 }
 
 static void
@@ -345,6 +346,12 @@ gimp_stroke_finalize (GObject *object)
   g_queue_free_full (stroke->anchors, (GDestroyNotify) gimp_anchor_free);
   stroke->anchors = NULL;
 
+  if (stroke->corner_specs)
+    {
+      g_array_unref (stroke->corner_specs);
+      stroke->corner_specs = NULL;
+    }
+
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
 
@@ -356,6 +363,8 @@ gimp_stroke_get_memsize (GimpObject *object,
   gint64      memsize = 0;
 
   memsize += gimp_g_queue_get_memsize (stroke->anchors, sizeof (GimpAnchor));
+  if (stroke->corner_specs)
+    memsize += sizeof (GimpStrokeCorner) * stroke->corner_specs->len;
 
   return memsize + GIMP_OBJECT_CLASS (parent_class)->get_memsize (object,
                                                                   gui_size);
@@ -377,6 +386,59 @@ gimp_stroke_get_id (GimpStroke *stroke)
   g_return_val_if_fail (GIMP_IS_STROKE (stroke), -1);
 
   return stroke->id;
+}
+
+void
+gimp_stroke_corner_set (GimpStroke    *stroke,
+                        gint           anchor_index,
+                        GimpCornerMode mode,
+                        gdouble        radius)
+{
+  gint i;
+
+  g_return_if_fail (GIMP_IS_STROKE (stroke));
+  g_return_if_fail (anchor_index >= 0);
+  g_return_if_fail (mode >= GIMP_CORNER_MODE_CHAMFER &&
+                    mode < GIMP_CORNER_MODE_LAST);
+
+  if (! stroke->corner_specs)
+    stroke->corner_specs = g_array_new (FALSE, FALSE, sizeof (GimpStrokeCorner));
+
+  for (i = 0; i < stroke->corner_specs->len; i++)
+    {
+      GimpStrokeCorner *corner;
+
+      corner = &g_array_index (stroke->corner_specs, GimpStrokeCorner, i);
+
+      if (corner->anchor_index == anchor_index)
+        {
+          corner->mode   = mode;
+          corner->radius = radius;
+          return;
+        }
+    }
+
+  {
+    GimpStrokeCorner corner = { anchor_index, mode, radius };
+    g_array_append_val (stroke->corner_specs, corner);
+  }
+}
+
+GArray *
+gimp_stroke_corner_specs_get (GimpStroke *stroke)
+{
+  GArray *copy;
+
+  g_return_val_if_fail (GIMP_IS_STROKE (stroke), NULL);
+
+  copy = g_array_new (FALSE, FALSE, sizeof (GimpStrokeCorner));
+
+  if (stroke->corner_specs && stroke->corner_specs->len)
+    g_array_append_vals (copy,
+                         stroke->corner_specs->data,
+                         stroke->corner_specs->len);
+
+  return copy;
 }
 
 
@@ -1063,6 +1125,13 @@ gimp_stroke_real_duplicate (GimpStroke *stroke)
     }
 
   new_stroke->closed = stroke->closed;
+  if (stroke->corner_specs && stroke->corner_specs->len)
+    {
+      g_array_set_size (new_stroke->corner_specs, 0);
+      g_array_append_vals (new_stroke->corner_specs,
+                           stroke->corner_specs->data,
+                           stroke->corner_specs->len);
+    }
   /* we do *not* copy the ID! */
 
   return new_stroke;
