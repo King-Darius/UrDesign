@@ -23,6 +23,7 @@
 #include <cairo.h>
 #include <gegl.h>
 #include <gdk-pixbuf/gdk-pixbuf.h>
+#include <math.h>
 
 #include "libgimpbase/gimpbase.h"
 #include "libgimpmath/gimpmath.h"
@@ -170,6 +171,26 @@ static gboolean   gimp_stroke_real_get_point_at_dist (GimpStroke       *stroke,
                                                       GimpCoords       *position,
                                                       gdouble          *slope);
 
+static GimpStrokeCorner * gimp_stroke_corner_lookup        (GimpStroke    *stroke,
+                                                            gint           anchor_index);
+static void               gimp_stroke_corner_apply_spec    (GimpStroke    *stroke,
+                                                            gint           anchor_index,
+                                                            GimpCornerMode mode,
+                                                            gdouble        radius);
+static GList *            gimp_stroke_corner_find_anchor   (GimpStroke    *stroke,
+                                                            gint           anchor_index);
+static GList *            gimp_stroke_corner_find_prev     (GimpStroke    *stroke,
+                                                            GList         *anchor_link);
+static GList *            gimp_stroke_corner_find_next     (GimpStroke    *stroke,
+                                                            GList         *anchor_link);
+static void               gimp_stroke_corner_set_handle    (GimpAnchor    *handle,
+                                                            const GimpCoords *anchor_pos);
+static void               gimp_stroke_corner_position_handle (GimpAnchor      *handle,
+                                                               const GimpCoords *anchor_pos,
+                                                               const GimpCoords *neighbor_pos,
+                                                               gdouble           radius,
+                                                               gboolean          invert);
+
 
 G_DEFINE_TYPE (GimpStroke, gimp_stroke, GIMP_TYPE_OBJECT)
 
@@ -271,7 +292,7 @@ static void
 gimp_stroke_init (GimpStroke *stroke)
 {
   stroke->anchors = g_queue_new ();
-  stroke->corner_specs = g_array_new (FALSE, FALSE, sizeof (GimpStrokeCorner));
+  stroke->corner_specs = NULL;
 }
 
 static void
@@ -394,34 +415,62 @@ gimp_stroke_corner_set (GimpStroke    *stroke,
                         GimpCornerMode mode,
                         gdouble        radius)
 {
-  gint i;
+  gboolean  remove_spec;
 
   g_return_if_fail (GIMP_IS_STROKE (stroke));
   g_return_if_fail (anchor_index >= 0);
   g_return_if_fail (mode >= GIMP_CORNER_MODE_CHAMFER &&
                     mode < GIMP_CORNER_MODE_LAST);
 
-  if (! stroke->corner_specs)
+  radius = MAX (0.0, radius);
+  remove_spec = (mode == GIMP_CORNER_MODE_CHAMFER && radius <= 0.0);
+
+  if (! stroke->corner_specs && ! remove_spec)
     stroke->corner_specs = g_array_new (FALSE, FALSE, sizeof (GimpStrokeCorner));
 
-  for (i = 0; i < stroke->corner_specs->len; i++)
+  if (stroke->corner_specs)
     {
-      GimpStrokeCorner *corner;
+      GimpStrokeCorner *corner =
+        gimp_stroke_corner_lookup (stroke, anchor_index);
 
-      corner = &g_array_index (stroke->corner_specs, GimpStrokeCorner, i);
-
-      if (corner->anchor_index == anchor_index)
+      if (corner)
         {
-          corner->mode   = mode;
-          corner->radius = radius;
+          gssize idx = corner -
+                        (GimpStrokeCorner *) stroke->corner_specs->data;
+
+          if (remove_spec)
+            {
+              if (idx >= 0)
+                g_array_remove_index (stroke->corner_specs, (guint) idx);
+
+              if (stroke->corner_specs->len == 0)
+                {
+                  g_array_unref (stroke->corner_specs);
+                  stroke->corner_specs = NULL;
+                }
+            }
+          else
+            {
+              corner->mode   = mode;
+              corner->radius = radius;
+            }
+
+          gimp_stroke_corner_apply_spec (stroke, anchor_index, mode, radius);
           return;
         }
     }
 
-  {
-    GimpStrokeCorner corner = { anchor_index, mode, radius };
-    g_array_append_val (stroke->corner_specs, corner);
-  }
+  if (! remove_spec)
+    {
+      GimpStrokeCorner corner = { anchor_index, mode, radius };
+
+      if (! stroke->corner_specs)
+        stroke->corner_specs = g_array_new (FALSE, FALSE, sizeof (GimpStrokeCorner));
+
+      g_array_append_val (stroke->corner_specs, corner);
+    }
+
+  gimp_stroke_corner_apply_spec (stroke, anchor_index, mode, radius);
 }
 
 GArray *
@@ -439,6 +488,244 @@ gimp_stroke_corner_specs_get (GimpStroke *stroke)
                          stroke->corner_specs->len);
 
   return copy;
+}
+
+static GimpStrokeCorner *
+gimp_stroke_corner_lookup (GimpStroke *stroke,
+                           gint        anchor_index)
+{
+  guint i;
+
+  if (! stroke->corner_specs)
+    return NULL;
+
+  for (i = 0; i < stroke->corner_specs->len; i++)
+    {
+      GimpStrokeCorner *corner =
+        &g_array_index (stroke->corner_specs, GimpStrokeCorner, i);
+
+      if (corner->anchor_index == anchor_index)
+        return corner;
+    }
+
+  return NULL;
+}
+
+static GList *
+gimp_stroke_corner_find_anchor (GimpStroke *stroke,
+                                gint        anchor_index)
+{
+  GList *link;
+  gint   current = 0;
+
+  for (link = stroke->anchors ? stroke->anchors->head : NULL;
+       link;
+       link = link->next)
+    {
+      GimpAnchor *anchor = link->data;
+
+      if (anchor->type != GIMP_ANCHOR_ANCHOR)
+        continue;
+
+      if (current == anchor_index)
+        return link;
+
+      current++;
+    }
+
+  return NULL;
+}
+
+static GList *
+gimp_stroke_corner_find_prev (GimpStroke *stroke,
+                              GList      *anchor_link)
+{
+  GList *link;
+
+  if (! anchor_link)
+    return NULL;
+
+  for (link = anchor_link->prev; link; link = link->prev)
+    if (((GimpAnchor *) link->data)->type == GIMP_ANCHOR_ANCHOR)
+      return link;
+
+  if (stroke->closed && stroke->anchors)
+    {
+      for (link = stroke->anchors->tail; link; link = link->prev)
+        {
+          if (link == anchor_link)
+            break;
+
+          if (((GimpAnchor *) link->data)->type == GIMP_ANCHOR_ANCHOR)
+            return link;
+        }
+    }
+
+  return NULL;
+}
+
+static GList *
+gimp_stroke_corner_find_next (GimpStroke *stroke,
+                              GList      *anchor_link)
+{
+  GList *link;
+
+  if (! anchor_link)
+    return NULL;
+
+  for (link = anchor_link->next; link; link = link->next)
+    if (((GimpAnchor *) link->data)->type == GIMP_ANCHOR_ANCHOR)
+      return link;
+
+  if (stroke->closed && stroke->anchors)
+    {
+      for (link = stroke->anchors->head; link; link = link->next)
+        {
+          if (link == anchor_link)
+            break;
+
+          if (((GimpAnchor *) link->data)->type == GIMP_ANCHOR_ANCHOR)
+            return link;
+        }
+    }
+
+  return NULL;
+}
+
+static void
+gimp_stroke_corner_set_handle (GimpAnchor       *handle,
+                               const GimpCoords *anchor_pos)
+{
+  if (! handle || handle->type != GIMP_ANCHOR_CONTROL || ! anchor_pos)
+    return;
+
+  handle->position = *anchor_pos;
+}
+
+static void
+gimp_stroke_corner_position_handle (GimpAnchor       *handle,
+                                    const GimpCoords *anchor_pos,
+                                    const GimpCoords *neighbor_pos,
+                                    gdouble           radius,
+                                    gboolean          invert)
+{
+  gdouble dx;
+  gdouble dy;
+  gdouble dist;
+  gdouble clamped;
+  gdouble scale;
+
+  if (! handle || handle->type != GIMP_ANCHOR_CONTROL || ! anchor_pos)
+    return;
+
+  if (! neighbor_pos || radius <= 0.0)
+    {
+      gimp_stroke_corner_set_handle (handle, anchor_pos);
+      return;
+    }
+
+  dx = neighbor_pos->x - anchor_pos->x;
+  dy = neighbor_pos->y - anchor_pos->y;
+  dist = hypot (dx, dy);
+
+  if (dist < 1e-6)
+    {
+      gimp_stroke_corner_set_handle (handle, anchor_pos);
+      return;
+    }
+
+  clamped = MIN (radius, dist * 0.5);
+
+  if (clamped <= 0.0)
+    {
+      gimp_stroke_corner_set_handle (handle, anchor_pos);
+      return;
+    }
+
+  scale = clamped / dist;
+
+  if (invert)
+    scale = -scale;
+
+  handle->position.x = anchor_pos->x + dx * scale;
+  handle->position.y = anchor_pos->y + dy * scale;
+}
+
+static void
+gimp_stroke_corner_apply_spec (GimpStroke    *stroke,
+                               gint           anchor_index,
+                               GimpCornerMode mode,
+                               gdouble        radius)
+{
+  GList      *anchor_link;
+  GimpAnchor *anchor;
+  GimpAnchor *prev_handle = NULL;
+  GimpAnchor *next_handle = NULL;
+  GList      *prev_anchor_link;
+  GList      *next_anchor_link;
+  const GimpCoords *prev_pos = NULL;
+  const GimpCoords *next_pos = NULL;
+
+  anchor_link = gimp_stroke_corner_find_anchor (stroke, anchor_index);
+
+  if (! anchor_link)
+    return;
+
+  anchor = anchor_link->data;
+
+  if (anchor_link->prev &&
+      ((GimpAnchor *) anchor_link->prev->data)->type == GIMP_ANCHOR_CONTROL)
+    prev_handle = anchor_link->prev->data;
+
+  if (anchor_link->next &&
+      ((GimpAnchor *) anchor_link->next->data)->type == GIMP_ANCHOR_CONTROL)
+    next_handle = anchor_link->next->data;
+
+  prev_anchor_link = gimp_stroke_corner_find_prev (stroke, anchor_link);
+  next_anchor_link = gimp_stroke_corner_find_next (stroke, anchor_link);
+
+  if (prev_anchor_link)
+    prev_pos = &((GimpAnchor *) prev_anchor_link->data)->position;
+
+  if (next_anchor_link)
+    next_pos = &((GimpAnchor *) next_anchor_link->data)->position;
+
+  switch (mode)
+    {
+    case GIMP_CORNER_MODE_CHAMFER:
+      gimp_stroke_corner_set_handle (prev_handle, &anchor->position);
+      gimp_stroke_corner_set_handle (next_handle, &anchor->position);
+      break;
+
+    case GIMP_CORNER_MODE_ROUND:
+      gimp_stroke_corner_position_handle (prev_handle,
+                                           &anchor->position,
+                                           prev_pos,
+                                           radius,
+                                           FALSE);
+      gimp_stroke_corner_position_handle (next_handle,
+                                           &anchor->position,
+                                           next_pos,
+                                           radius,
+                                           FALSE);
+      break;
+
+    case GIMP_CORNER_MODE_INVERTED:
+      gimp_stroke_corner_position_handle (prev_handle,
+                                           &anchor->position,
+                                           prev_pos,
+                                           radius,
+                                           TRUE);
+      gimp_stroke_corner_position_handle (next_handle,
+                                           &anchor->position,
+                                           next_pos,
+                                           radius,
+                                           TRUE);
+      break;
+
+    default:
+      break;
+    }
 }
 
 

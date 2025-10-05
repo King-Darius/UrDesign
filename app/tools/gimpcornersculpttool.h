@@ -37,6 +37,9 @@ typedef struct _GimpCornerSculptToolClass GimpCornerSculptToolClass;
 struct _GimpCornerSculptTool
 {
   GimpPathTool parent_instance;
+
+  gulong       mode_notify_id;
+  gulong       radius_notify_id;
 };
 
 struct _GimpCornerSculptToolClass
