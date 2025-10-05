@@ -93,6 +93,8 @@ libapptools_sources = [
   'gimppaintselecttool.c',
   'gimppainttool-paint.c',
   'gimppainttool.c',
+  'gimpcornersculptoptions.c',
+  'gimpcornersculpttool.c',
   'gimppathoptions.c',
   'gimppathtool.c',
   'gimpshapefusiontool.c',

@@ -551,6 +551,44 @@ gimp_create_mainimage (Gimp     *gimp,
   stroke = gimp_bezier_stroke_new_from_coords (path1_coords,
                                                G_N_ELEMENTS (path1_coords),
                                                TRUE /*closed*/);
+  {
+    gboolean closed_flag = FALSE;
+    GArray  *points      = gimp_stroke_control_points_get (stroke,
+                                                           &closed_flag);
+    gint      first_anchor  = -1;
+    gint      second_anchor = -1;
+    gint      idx;
+
+    for (idx = 0; idx < (gint) points->len; idx++)
+      {
+        GimpAnchor anchor = g_array_index (points, GimpAnchor, idx);
+
+        if (anchor.type == GIMP_ANCHOR_ANCHOR)
+          {
+            if (first_anchor < 0)
+              first_anchor = idx;
+            else if (second_anchor < 0)
+              {
+                second_anchor = idx;
+                break;
+              }
+          }
+      }
+
+    if (first_anchor >= 0)
+      gimp_stroke_corner_set (stroke,
+                              first_anchor,
+                              GIMP_CORNER_MODE_ROUND,
+                              5.0);
+
+    if (second_anchor >= 0)
+      gimp_stroke_corner_set (stroke,
+                              second_anchor,
+                              GIMP_CORNER_MODE_CHAMFER,
+                              3.0);
+
+    g_array_free (points, TRUE);
+  }
   gimp_path_stroke_add (path, stroke);
   gimp_image_add_path (image,
                        path,
@@ -718,6 +756,36 @@ gimp_assert_path (GimpImage   *image,
                                       GimpAnchor,
                                       i).position.y);
     }
+
+  {
+    GArray *corner_specs = gimp_stroke_corner_specs_get (stroke);
+
+    if (g_strcmp0 (name, GIMP_MAINIMAGE_PATH1_NAME) == 0)
+      {
+        g_assert_cmpint (corner_specs->len, ==, 2);
+
+        if (corner_specs->len >= 2)
+          {
+            GimpStrokeCorner corner0 =
+              g_array_index (corner_specs, GimpStrokeCorner, 0);
+            GimpStrokeCorner corner1 =
+              g_array_index (corner_specs, GimpStrokeCorner, 1);
+
+            g_assert_cmpint (corner0.mode, ==, GIMP_CORNER_MODE_ROUND);
+            g_assert_cmpfloat (corner0.radius, ==, 5.0);
+            g_assert_cmpint (corner1.mode, ==, GIMP_CORNER_MODE_CHAMFER);
+            g_assert_cmpfloat (corner1.radius, ==, 3.0);
+          }
+      }
+    else
+      {
+        g_assert_cmpint (corner_specs->len, ==, 0);
+      }
+
+    g_array_unref (corner_specs);
+  }
+
+  g_array_free (control_points, TRUE);
 
   g_assert_true (gimp_item_get_visible (GIMP_ITEM (path)) ? TRUE : FALSE ==
                  visible ? TRUE : FALSE);

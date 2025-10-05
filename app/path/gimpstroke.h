@@ -22,6 +22,8 @@
 
 #include "core/gimpobject.h"
 
+#include "path-enums.h"
+
 
 #define GIMP_TYPE_STROKE            (gimp_stroke_get_type ())
 #define GIMP_STROKE(obj)            (G_TYPE_CHECK_INSTANCE_CAST ((obj), GIMP_TYPE_STROKE, GimpStroke))
@@ -41,6 +43,7 @@ struct _GimpStroke
   GQueue     *anchors;
 
   gboolean    closed;
+  GArray     *corner_specs;
 };
 
 struct _GimpStrokeClass
@@ -182,12 +185,25 @@ struct _GimpStrokeClass
                                           gboolean              *ret_closed);
 };
 
+typedef struct
+{
+  gint            anchor_index;
+  GimpCornerMode  mode;
+  gdouble         radius;
+} GimpStrokeCorner;
+
 
 GType        gimp_stroke_get_type             (void) G_GNUC_CONST;
 
 void         gimp_stroke_set_id               (GimpStroke            *stroke,
                                                gint                   id);
 gint         gimp_stroke_get_id               (GimpStroke            *stroke);
+
+void         gimp_stroke_corner_set           (GimpStroke            *stroke,
+                                               gint                   anchor_index,
+                                               GimpCornerMode         mode,
+                                               gdouble                radius);
+GArray     * gimp_stroke_corner_specs_get     (GimpStroke            *stroke);
 
 
 /* accessing / modifying the anchors */

@@ -363,6 +363,7 @@
 #define GIMP_HELP_TOOL_N_POINT_DEFORMATION        "gimp-tool-n-point-deformation"
 #define GIMP_HELP_TOOL_OFFSET                     "gimp-tool-offset"
 #define GIMP_HELP_TOOL_PATH                       "gimp-tool-path"
+#define GIMP_HELP_TOOL_CORNER_SCULPT              "gimp-tool-corner-sculpt"
 #define GIMP_HELP_TOOL_PAINTBRUSH                 "gimp-tool-paintbrush"
 #define GIMP_HELP_TOOL_PENCIL                     "gimp-tool-pencil"
 #define GIMP_HELP_TOOL_PERSPECTIVE                "gimp-tool-perspective"
