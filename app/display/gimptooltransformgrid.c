@@ -126,7 +126,17 @@ struct _GimpToolTransformGridPrivate
   gboolean               cornersnap_baseline;
   gboolean               fixedpivot;
 
-  gboolean               extend_selection_modifier_active;
+  gboolean               baseline_constrain_move;
+  gboolean               baseline_constrain_scale;
+  gboolean               baseline_constrain_rotate;
+  gboolean               baseline_constrain_shear;
+  gboolean               baseline_constrain_perspective;
+  gboolean               baseline_frompivot_scale;
+  gboolean               baseline_frompivot_shear;
+  gboolean               baseline_frompivot_perspective;
+  gboolean               baseline_cornersnap;
+
+  gboolean               modifier_override_active;
 
   gdouble                curx;         /*  current x coord                    */
   gdouble                cury;         /*  current y coord                    */
@@ -625,15 +635,39 @@ gimp_tool_transform_grid_constructed (GObject *object)
           {
             GimpGuiConfig *gui_config = GIMP_GUI_CONFIG (gimp->config);
 
-            g_object_set (grid,
-                          "constrain-scale",
-                          gui_config->transform_uniform_scale_default,
-                          "frompivot-scale",
-                          gui_config->transform_scale_from_center_default,
-                          NULL);
+  g_object_set (grid,
+                "constrain-scale",
+                gui_config->transform_uniform_scale_default,
+                "frompivot-scale",
+                gui_config->transform_scale_from_center_default,
+                NULL);
+
+            private->baseline_constrain_scale       = private->constrain_scale;
+            private->baseline_constrain_move        = private->constrain_move;
+            private->baseline_constrain_rotate      = private->constrain_rotate;
+            private->baseline_constrain_shear       = private->constrain_shear;
+            private->baseline_constrain_perspective = private->constrain_perspective;
+            private->baseline_frompivot_scale       = private->frompivot_scale;
+            private->baseline_frompivot_shear       = private->frompivot_shear;
+            private->baseline_frompivot_perspective = private->frompivot_perspective;
+            private->baseline_cornersnap            = private->cornersnap;
           }
       }
   }
+
+  if (! gimp_tool_widget_get_shell (widget) ||
+      ! gimp_tool_widget_get_shell (widget)->display)
+    {
+      private->baseline_constrain_scale       = private->constrain_scale;
+      private->baseline_constrain_move        = private->constrain_move;
+      private->baseline_constrain_rotate      = private->constrain_rotate;
+      private->baseline_constrain_shear       = private->constrain_shear;
+      private->baseline_constrain_perspective = private->constrain_perspective;
+      private->baseline_frompivot_scale       = private->frompivot_scale;
+      private->baseline_frompivot_shear       = private->frompivot_shear;
+      private->baseline_frompivot_perspective = private->frompivot_perspective;
+      private->baseline_cornersnap            = private->cornersnap;
+    }
 
   gimp_tool_transform_grid_changed (widget);
 }
@@ -733,44 +767,50 @@ gimp_tool_transform_grid_set_property (GObject      *object,
 
     case PROP_CONSTRAIN_MOVE:
       private->constrain_move = g_value_get_boolean (value);
-      if (! private->extend_selection_modifier_active)
-        private->constrain_move_baseline = private->constrain_move;
+      if (! private->modifier_override_active)
+        private->baseline_constrain_move = private->constrain_move;
       break;
     case PROP_CONSTRAIN_SCALE:
       private->constrain_scale = g_value_get_boolean (value);
-      if (! private->extend_selection_modifier_active)
-        private->constrain_scale_baseline = private->constrain_scale;
+      if (! private->modifier_override_active)
+        private->baseline_constrain_scale = private->constrain_scale;
       break;
     case PROP_CONSTRAIN_ROTATE:
       private->constrain_rotate = g_value_get_boolean (value);
-      if (! private->extend_selection_modifier_active)
-        private->constrain_rotate_baseline = private->constrain_rotate;
+      if (! private->modifier_override_active)
+        private->baseline_constrain_rotate = private->constrain_rotate;
       break;
     case PROP_CONSTRAIN_SHEAR:
       private->constrain_shear = g_value_get_boolean (value);
-      if (! private->extend_selection_modifier_active)
-        private->constrain_shear_baseline = private->constrain_shear;
+      if (! private->modifier_override_active)
+        private->baseline_constrain_shear = private->constrain_shear;
       break;
     case PROP_CONSTRAIN_PERSPECTIVE:
       private->constrain_perspective = g_value_get_boolean (value);
-      if (! private->extend_selection_modifier_active)
-        private->constrain_perspective_baseline = private->constrain_perspective;
+      if (! private->modifier_override_active)
+        private->baseline_constrain_perspective = private->constrain_perspective;
       break;
 
     case PROP_FROMPIVOT_SCALE:
       private->frompivot_scale = g_value_get_boolean (value);
+      if (! private->modifier_override_active)
+        private->baseline_frompivot_scale = private->frompivot_scale;
       break;
     case PROP_FROMPIVOT_SHEAR:
       private->frompivot_shear = g_value_get_boolean (value);
+      if (! private->modifier_override_active)
+        private->baseline_frompivot_shear = private->frompivot_shear;
       break;
     case PROP_FROMPIVOT_PERSPECTIVE:
       private->frompivot_perspective = g_value_get_boolean (value);
+      if (! private->modifier_override_active)
+        private->baseline_frompivot_perspective = private->frompivot_perspective;
       break;
 
     case PROP_CORNERSNAP:
       private->cornersnap = g_value_get_boolean (value);
-      if (! private->extend_selection_modifier_active)
-        private->cornersnap_baseline = private->cornersnap;
+      if (! private->modifier_override_active)
+        private->baseline_cornersnap = private->cornersnap;
       break;
     case PROP_FIXEDPIVOT:
       private->fixedpivot = g_value_get_boolean (value);
@@ -2215,31 +2255,29 @@ gimp_tool_transform_grid_modifier (GimpToolWidget  *widget,
 
   if (key == gimp_get_constrain_behavior_mask ())
     {
+      private->modifier_override_active = TRUE;
       g_object_set (widget,
-                    "frompivot-scale",       ! private->frompivot_scale,
-                    "frompivot-shear",       ! private->frompivot_shear,
-                    "frompivot-perspective", ! private->frompivot_perspective,
+                    "frompivot-scale",       press ? ! private->baseline_frompivot_scale
+                                                    : private->baseline_frompivot_scale,
+                    "frompivot-shear",       press ? ! private->baseline_frompivot_shear
+                                                    : private->baseline_frompivot_shear,
+                    "frompivot-perspective", press ? ! private->baseline_frompivot_perspective
+                                                    : private->baseline_frompivot_perspective,
                     NULL);
+      private->modifier_override_active = FALSE;
     }
   else if (key == gimp_get_extend_selection_mask ())
     {
-      if (press)
-        {
-          private->extend_selection_modifier_active = TRUE;
-
-          g_object_set (widget,
-                        "cornersnap",            ! private->cornersnap_baseline,
-                        "constrain-move",        ! private->constrain_move_baseline,
-                        "constrain-scale",       TRUE,
-                        "constrain-rotate",      ! private->constrain_rotate_baseline,
-                        "constrain-shear",       ! private->constrain_shear_baseline,
-                        "constrain-perspective", ! private->constrain_perspective_baseline,
-                        NULL);
-        }
-      else
-        {
-          private->extend_selection_modifier_active = FALSE;
-        }
+      private->modifier_override_active = TRUE;
+      g_object_set (widget,
+                    "cornersnap",            press ? TRUE : private->baseline_cornersnap,
+                    "constrain-move",        press ? TRUE : private->baseline_constrain_move,
+                    "constrain-scale",       press ? TRUE : private->baseline_constrain_scale,
+                    "constrain-rotate",      press ? TRUE : private->baseline_constrain_rotate,
+                    "constrain-shear",       press ? TRUE : private->baseline_constrain_shear,
+                    "constrain-perspective", press ? TRUE : private->baseline_constrain_perspective,
+                    NULL);
+      private->modifier_override_active = FALSE;
     }
 }
 
@@ -2254,18 +2292,6 @@ gimp_tool_transform_grid_hover_modifier (GimpToolWidget  *widget,
   GimpCoords                    coords  = { 0.0, };
 
   gimp_tool_transform_grid_modifier (widget, key, press);
-
-  if (! press && key == gimp_get_extend_selection_mask ())
-    {
-      g_object_set (widget,
-                    "cornersnap",            private->cornersnap_baseline,
-                    "constrain-move",        private->constrain_move_baseline,
-                    "constrain-scale",       private->constrain_scale_baseline,
-                    "constrain-rotate",      private->constrain_rotate_baseline,
-                    "constrain-shear",       private->constrain_shear_baseline,
-                    "constrain-perspective", private->constrain_perspective_baseline,
-                    NULL);
-    }
 
   if (private->button_down)
     {

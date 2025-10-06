@@ -48,6 +48,11 @@ engine, Pango layout |
 commands, and scale-aware grids with shortcuts. | Blender's snapping stack,
 Inkscape guides |
 
+**Progress:** Corner Sculpt tooling provides on-canvas chamfer/round editing,
+while the Shape Fusion tool unlocks boolean path workflows (union, subtract,
+intersect). Intelli Select seeds the raster side with a smart selection engine
+that can escalate to SAM2 when local models are available.
+
 ### Layout board
 
 | Focus | Goals | References |

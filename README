@@ -41,6 +41,25 @@ The current development cycle introduces a refreshed on-canvas transform UI:
 These refinements lay the groundwork for additional transform overlays such as
 constraint widgets, numerical popovers, and tablet-friendly gesture ribbons.
 
+## Creative tool additions
+
+The latest iteration introduces dedicated tooling to accelerate hybrid raster
+and vector workflows:
+
+* **Corner Sculpt Tool** – interactively round or chamfer Bezier corners on any
+  path or vector layer using radius presets, preserving undo history and path
+  topology.
+* **Shape Fusion Tool** – merges multiple paths with live boolean operations
+  (union, subtract, intersect) while keeping a clean undo stack and optional
+  source preservation.
+* **Intelli Select Tool** – generates context-aware selections from a single
+  click, applying local color clustering and refinement. The bundled SAM2
+  vendor modules enable accelerated, model-driven segmentation once compatible
+  checkpoints are supplied.
+
+These tools surface in the toolbox alongside the existing selection and path
+entries and can be configured via new option panels.
+
 ## Feature completeness roadmap
 
 UrDesign pursues parity across raster, vector, and layout disciplines. Active
@@ -91,6 +110,10 @@ Additional personalization options:
   `gtk.css`).
 * Application overrides via `${XDG_CONFIG_HOME}/UrDesign/3.0/urdesign.css`.
 * Custom shortcuts in `${XDG_CONFIG_HOME}/UrDesign/3.0/shortcutsrc`.
+* IntelliSelect SAM2 integration by downloading the recommended checkpoints for
+  the bundled [`facebookresearch/sam2`](https://github.com/facebookresearch/sam2)
+  package and placing them under `plug-ins/intelleselect/vendor/sam2/checkpoints`
+  (see `plug-ins/intelleselect/vendor/README.md`).
 
 ## Contributing
 

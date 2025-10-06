@@ -19,9 +19,7 @@
 
 #pragma once
 
-#include "gimppathtool.h"
-
-G_BEGIN_DECLS
+#include "gimpdrawtool.h"
 
 #define GIMP_TYPE_CORNER_SCULPT_TOOL            (gimp_corner_sculpt_tool_get_type ())
 #define GIMP_CORNER_SCULPT_TOOL(obj)            (G_TYPE_CHECK_INSTANCE_CAST ((obj), GIMP_TYPE_CORNER_SCULPT_TOOL, GimpCornerSculptTool))
@@ -30,26 +28,20 @@ G_BEGIN_DECLS
 #define GIMP_IS_CORNER_SCULPT_TOOL_CLASS(klass) (G_TYPE_CHECK_CLASS_TYPE ((klass), GIMP_TYPE_CORNER_SCULPT_TOOL))
 #define GIMP_CORNER_SCULPT_TOOL_GET_CLASS(obj)  (G_TYPE_INSTANCE_GET_CLASS ((obj), GIMP_TYPE_CORNER_SCULPT_TOOL, GimpCornerSculptToolClass))
 
-
 typedef struct _GimpCornerSculptTool      GimpCornerSculptTool;
 typedef struct _GimpCornerSculptToolClass GimpCornerSculptToolClass;
 
 struct _GimpCornerSculptTool
 {
-  GimpPathTool parent_instance;
-
-  gulong       mode_notify_id;
-  gulong       radius_notify_id;
+  GimpDrawTool parent_instance;
 };
 
 struct _GimpCornerSculptToolClass
 {
-  GimpPathToolClass parent_class;
+  GimpDrawToolClass parent_class;
 };
 
 GType gimp_corner_sculpt_tool_get_type (void) G_GNUC_CONST;
 
 void  gimp_corner_sculpt_tool_register (GimpToolRegisterCallback callback,
                                         gpointer                 data);
-
-G_END_DECLS

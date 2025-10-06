@@ -1,6 +1,8 @@
 /* GIMP - The GNU Image Manipulation Program
  * Copyright (C) 1995 Spencer Kimball and Peter Mattis
  *
+ * gimpshapefusiontool.c
+ *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 3 of the License, or
@@ -18,345 +20,368 @@
 #include "config.h"
 
 #include <gegl.h>
-#include <gtk/gtk.h>
+#include <glib.h>
 
-#include "libgimpbase/gimpbase.h"
+#include "libgimpconfig/gimpconfig.h"
 
 #include "tools-types.h"
 
+#include "actions/procedure-commands.h"
+
 #include "core/gimp.h"
+#include "core/gimpchannel-select.h"
 #include "core/gimpcontext.h"
 #include "core/gimpimage.h"
+#include "core/gimpimage-undo.h"
+#include "core/gimpitem.h"
+#include "core/gimpselection.h"
+#include "core/gimptoolinfo.h"
+
+#include "pdb/gimppdb.h"
+
+#include "path/gimppath.h"
+
+#include "widgets/gimphelp-ids.h"
 
 #include "display/gimpdisplay.h"
 
-#include "path/gimppathboolean.h"
-#include "path/gimpvectorlayer.h"
-
+#include "gimpshapefusionoptions.h"
 #include "gimpshapefusiontool.h"
+#include "gimptoolcontrol.h"
 
 #include "gimp-intl.h"
 
+static void     gimp_shape_fusion_tool_button_press (GimpTool              *tool,
+                                                     const GimpCoords      *coords,
+                                                     guint32                time,
+                                                     GdkModifierType        state,
+                                                     GimpButtonPressType    press_type,
+                                                     GimpDisplay           *display);
 
-static void     gimp_shape_fusion_tool_finalize      (GObject          *object);
-static void     gimp_shape_fusion_tool_button_press  (GimpTool         *tool,
-                                                      const GimpCoords *coords,
-                                                      guint32           time,
-                                                      GdkModifierType   state,
-                                                      GimpButtonPressType press_type,
-                                                      GimpDisplay      *display);
-static void     gimp_shape_fusion_tool_button_release(GimpTool         *tool,
-                                                      const GimpCoords *coords,
-                                                      guint32           time,
-                                                      GdkModifierType   state,
-                                                      GimpButtonReleaseType release_type,
-                                                      GimpDisplay      *display);
-static void     gimp_shape_fusion_tool_motion        (GimpTool         *tool,
-                                                      const GimpCoords *coords,
-                                                      guint32           time,
-                                                      GdkModifierType   state,
-                                                      GimpDisplay      *display);
-static void     gimp_shape_fusion_tool_oper_update   (GimpTool         *tool,
-                                                      const GimpCoords *coords,
-                                                      GdkModifierType   state,
-                                                      gboolean          proximity,
-                                                      GimpDisplay      *display);
+static void     gimp_shape_fusion_tool_register_type (GType                 tool_type,
+                                                      GType                 options_type,
+                                                      GimpToolOptionsGUIFunc gui_func,
+                                                      GimpContextPropMask   context_props,
+                                                      const gchar          *identifier,
+                                                      const gchar          *label,
+                                                      const gchar          *tooltip,
+                                                      const gchar          *menu_label,
+                                                      const gchar          *menu_accel,
+                                                      const gchar          *help_domain,
+                                                      const gchar          *help_id,
+                                                      const gchar          *icon_name,
+                                                      gpointer              data);
 
-static gboolean gimp_shape_fusion_tool_collect_layers(GimpShapeFusionTool *fusion_tool,
-                                                      GimpImage           *image);
-static void     gimp_shape_fusion_tool_clear_state   (GimpShapeFusionTool *fusion_tool);
-static void     gimp_shape_fusion_tool_update_preview(GimpShapeFusionTool *fusion_tool,
-                                                      GimpDisplay         *display);
-static GimpPathBooleanMode
-                gimp_shape_fusion_tool_resolve_mode (GimpShapeFusionTool *fusion_tool,
-                                                      GdkModifierType      state);
+G_DEFINE_TYPE (GimpShapeFusionTool, gimp_shape_fusion_tool, GIMP_TYPE_TOOL)
 
-
-G_DEFINE_TYPE (GimpShapeFusionTool, gimp_shape_fusion_tool, GIMP_TYPE_DRAW_TOOL)
-
-
-void
-gimp_shape_fusion_tool_register (GimpToolRegisterCallback  callback,
-                                 gpointer                  data)
+static void
+ gimp_shape_fusion_tool_class_init (GimpShapeFusionToolClass *klass)
 {
-  (* callback) (GIMP_TYPE_SHAPE_FUSION_TOOL,
-                KIMP_TYPE_SHAPE_FUSION_OPTIONS,
-                kimp_shape_fusion_options_gui,
-                0,
-                "gimp-shape-fusion-tool",
-                C_("tool", "Shape Fusion"),
-                _("Shape Fusion Tool: Combine vector layers non-destructively"),
-                N_("_Shape Fusion"), NULL,
-                NULL, GIMP_HELP_TOOL_PATH,
-                GIMP_ICON_TOOL_PATH,
-                data);
+  GimpToolClass *tool_class = GIMP_TOOL_CLASS (klass);
+
+  tool_class->button_press = gimp_shape_fusion_tool_button_press;
 }
 
 static void
-gimp_shape_fusion_tool_class_init (GimpShapeFusionToolClass *klass)
+ gimp_shape_fusion_tool_init (GimpShapeFusionTool *tool)
 {
-  GObjectClass  *object_class = G_OBJECT_CLASS (klass);
-  GimpToolClass *tool_class   = GIMP_TOOL_CLASS (klass);
+  gimp_tool_control_set_tool_cursor (GIMP_TOOL (tool)->control,
+                                     GIMP_TOOL_CURSOR_PATHS);
+  gimp_tool_control_set_wants_click (GIMP_TOOL (tool)->control, TRUE);
+  gimp_tool_control_set_wants_double_click (GIMP_TOOL (tool)->control, FALSE);
+  gimp_tool_control_set_precision (GIMP_TOOL (tool)->control,
+                                   GIMP_CURSOR_PRECISION_PIXEL_CENTER);
+}
 
-  object_class->finalize     = gimp_shape_fusion_tool_finalize;
+static GeglBuffer *
+shape_fusion_duplicate_selection (GimpImage *image)
+{
+  GimpChannel *mask;
+  GeglBuffer  *buffer = NULL;
 
-  tool_class->button_press   = gimp_shape_fusion_tool_button_press;
-  tool_class->button_release = gimp_shape_fusion_tool_button_release;
-  tool_class->motion         = gimp_shape_fusion_tool_motion;
-  tool_class->oper_update    = gimp_shape_fusion_tool_oper_update;
+  mask = gimp_image_get_mask (image);
+
+  if (mask)
+    {
+      GeglBuffer *source = gimp_drawable_get_buffer (GIMP_DRAWABLE (mask));
+
+      if (source)
+        buffer = gegl_buffer_dup (source);
+    }
+
+  return buffer;
 }
 
 static void
-gimp_shape_fusion_tool_init (GimpShapeFusionTool *fusion_tool)
+shape_fusion_restore_selection (GimpImage   *image,
+                                GeglBuffer  *saved)
 {
-  fusion_tool->target       = NULL;
-  fusion_tool->sources      = NULL;
-  fusion_tool->preview_path = NULL;
-  fusion_tool->mode         = GIMP_PATH_BOOLEAN_MODE_UNION;
+  GimpChannel *mask;
+
+  if (! saved)
+    return;
+
+  mask = gimp_image_get_mask (image);
+
+  if (! mask)
+    {
+      g_object_unref (saved);
+      return;
+    }
+
+  gimp_channel_select_buffer (mask,
+                              C_("command", "Shape Fusion"),
+                              saved,
+                              0, 0,
+                              GIMP_CHANNEL_OP_REPLACE,
+                              FALSE,
+                              0.0, 0.0);
+
+  g_object_unref (saved);
 }
 
 static void
-gimp_shape_fusion_tool_finalize (GObject *object)
+shape_fusion_clear_selection (GimpImage *image)
 {
-  GimpShapeFusionTool *fusion_tool = GIMP_SHAPE_FUSION_TOOL (object);
+  GimpChannel *mask = gimp_image_get_mask (image);
 
-  gimp_shape_fusion_tool_clear_state (fusion_tool);
-
-  G_OBJECT_CLASS (gimp_shape_fusion_tool_parent_class)->finalize (object);
+  if (mask)
+    gimp_channel_clear (mask, NULL, TRUE);
 }
 
 static void
-gimp_shape_fusion_tool_button_press (GimpTool              *tool,
-                                     const GimpCoords      *coords,
-                                     guint32                time,
-                                     GdkModifierType        state,
-                                     GimpButtonPressType    press_type,
-                                     GimpDisplay           *display)
+shape_fusion_apply_selection (GimpShapeFusionOptions *options,
+                              GList                  *paths,
+                              GimpImage              *image)
 {
-  GimpShapeFusionTool     *fusion_tool = GIMP_SHAPE_FUSION_TOOL (tool);
-  GimpImage               *image;
-  KimpShapeFusionOptions  *options;
+  GimpChannelOps next_op = GIMP_CHANNEL_OP_REPLACE;
+  GList         *iter;
 
-  gimp_shape_fusion_tool_clear_state (fusion_tool);
+  for (iter = paths; iter; iter = iter->next)
+    {
+      gimp_item_to_selection (GIMP_ITEM (iter->data),
+                              next_op,
+                              TRUE,
+                              FALSE,
+                              0.0,
+                              0.0);
+
+      switch (options->mode)
+        {
+        case GIMP_SHAPE_FUSION_MODE_UNION:
+          next_op = GIMP_CHANNEL_OP_ADD;
+          break;
+
+        case GIMP_SHAPE_FUSION_MODE_SUBTRACT:
+          next_op = GIMP_CHANNEL_OP_SUBTRACT;
+          break;
+
+        case GIMP_SHAPE_FUSION_MODE_INTERSECT:
+          next_op = GIMP_CHANNEL_OP_INTERSECT;
+          break;
+
+        default:
+          break;
+        }
+    }
+}
+
+static GimpPath *
+shape_fusion_pick_result_path (GimpImage *image,
+                               GHashTable *original_paths)
+{
+  GList    *selected = gimp_image_get_selected_paths (image);
+  GList    *iter;
+  GimpPath *result = NULL;
+
+  for (iter = selected; iter; iter = iter->next)
+    {
+      if (! g_hash_table_contains (original_paths, iter->data))
+        {
+          result = iter->data;
+          break;
+        }
+    }
+
+  if (! result && selected)
+    result = selected->data;
+
+  return result;
+}
+
+static gboolean
+shape_fusion_convert_selection_to_path (GimpImage   *image,
+                                        GimpDisplay *display)
+{
+  GimpProcedure  *procedure;
+  GimpValueArray *args;
+  gboolean        success;
+
+  procedure = gimp_pdb_lookup_procedure (image->gimp->pdb,
+                                         "plug-in-sel2path");
+
+  if (! procedure)
+    return FALSE;
+
+  args = gimp_procedure_get_arguments (procedure);
+
+  g_value_set_enum (gimp_value_array_index (args, 0),
+                    GIMP_RUN_NONINTERACTIVE);
+  g_value_set_object (gimp_value_array_index (args, 1),
+                      image);
+
+  success = procedure_commands_run_procedure (procedure,
+                                              image->gimp,
+                                              GIMP_PROGRESS (display),
+                                              args);
+
+  gimp_value_array_unref (args);
+
+  return success;
+}
+
+static void
+shape_fusion_remove_sources (GimpImage *image,
+                              GList     *paths)
+{
+  GList *iter;
+
+  for (iter = paths; iter; iter = iter->next)
+    {
+      gimp_image_remove_path (image, iter->data, TRUE, NULL);
+    }
+}
+
+static void
+shape_fusion_register_result (GimpImage *image,
+                              GimpPath  *result)
+{
+  if (! result)
+    return;
+
+  gimp_viewable_set_name (GIMP_VIEWABLE (result),
+                          C_("paths", "Fusion Result"));
+}
+
+static void
+ gimp_shape_fusion_tool_button_press (GimpTool              *tool,
+                                      const GimpCoords      *coords,
+                                      guint32                time,
+                                      GdkModifierType        state,
+                                      GimpButtonPressType    press_type,
+                                      GimpDisplay           *display)
+{
+  GimpShapeFusionOptions *options;
+  GimpImage              *image;
+  GList                  *paths;
+  GList                  *iter;
+  GHashTable             *original_paths;
+  GeglBuffer             *saved_selection = NULL;
+  gboolean                success = FALSE;
+
+  if (press_type != GIMP_BUTTON_PRESS_NORMAL)
+    return;
 
   image = gimp_display_get_image (display);
   if (! image)
     return;
 
-  if (! gimp_shape_fusion_tool_collect_layers (fusion_tool, image))
+  options = GIMP_SHAPE_FUSION_OPTIONS (tool->options);
+
+  paths = g_list_copy (gimp_image_get_selected_paths (image));
+
+  if (g_list_length (paths) < 2)
     {
-      gimp_tool_push_status (tool, display,
-                             _("Select vector layers to preview Shape Fusion"));
+      gimp_tool_message (tool, display,
+                         _("Select at least two paths to fuse."));
+      g_list_free (paths);
       return;
     }
 
-  options = KIMP_SHAPE_FUSION_OPTIONS (gimp_tool_get_options (tool));
-  fusion_tool->mode = gimp_shape_fusion_tool_resolve_mode (fusion_tool, state);
+  original_paths = g_hash_table_new (g_direct_hash, g_direct_equal);
 
-  gimp_draw_tool_start (GIMP_DRAW_TOOL (tool), display);
+  for (iter = paths; iter; iter = iter->next)
+    g_hash_table_add (original_paths, iter->data);
 
-  gimp_shape_fusion_tool_update_preview (fusion_tool, display);
+  saved_selection = shape_fusion_duplicate_selection (image);
 
-  if (options->enable_additive_gesture || options->enable_subtractive_gesture)
+  gimp_image_undo_group_start (image, GIMP_UNDO_GROUP_PATHS,
+                               C_("undo-type", "Shape Fusion"));
+
+  shape_fusion_clear_selection (image);
+  shape_fusion_apply_selection (options, paths, image);
+
+  success = shape_fusion_convert_selection_to_path (image, display);
+
+  if (success)
     {
-      GString *hint = g_string_new (NULL);
+      GimpPath *result = shape_fusion_pick_result_path (image, original_paths);
 
-      if (options->enable_additive_gesture)
-        g_string_append (hint, _("Hold Shift to union"));
+      if (! options->keep_sources)
+        shape_fusion_remove_sources (image, paths);
 
-      if (options->enable_subtractive_gesture)
-        {
-          if (hint->len > 0)
-            g_string_append_c (hint, '\n');
-
-          g_string_append (hint, _("Hold Alt to subtract"));
-        }
-
-      if (hint->len > 0)
-        gimp_tool_push_status (tool, display, "%s", hint->str);
-
-      g_string_free (hint, TRUE);
+      shape_fusion_register_result (image, result);
     }
+  else
+    {
+      gimp_tool_message (tool, display,
+                         _("Shape fusion failed. Ensure the selection plug-in is available."));
+    }
+
+  shape_fusion_restore_selection (image, saved_selection);
+
+  gimp_image_flush (image);
+  gimp_image_undo_group_end (image);
+
+  g_hash_table_destroy (original_paths);
+  g_list_free (paths);
 }
 
 static void
-gimp_shape_fusion_tool_button_release (GimpTool               *tool,
-                                       const GimpCoords       *coords,
-                                       guint32                 time,
-                                       GdkModifierType         state,
-                                       GimpButtonReleaseType   release_type,
-                                       GimpDisplay            *display)
+ gimp_shape_fusion_tool_register_type (GType                  tool_type,
+                                       GType                  options_type,
+                                       GimpToolOptionsGUIFunc options_gui_func,
+                                       GimpContextPropMask    context_props,
+                                       const gchar           *identifier,
+                                       const gchar           *label,
+                                       const gchar           *tooltip,
+                                       const gchar           *menu_label,
+                                       const gchar           *menu_accel,
+                                       const gchar           *help_domain,
+                                       const gchar           *help_id,
+                                       const gchar           *icon_name,
+                                       gpointer               data)
 {
-  GimpShapeFusionTool *fusion_tool = GIMP_SHAPE_FUSION_TOOL (tool);
-  GimpImage           *image       = gimp_display_get_image (display);
+  GimpToolRegisterCallback callback = (GimpToolRegisterCallback) data;
 
-  if (fusion_tool->target && image)
-    {
-      GError *error = NULL;
-
-      if (! gimp_path_boolean_apply (image,
-                                     fusion_tool->target,
-                                     fusion_tool->sources,
-                                     fusion_tool->mode,
-                                     TRUE,
-                                     &error))
-        {
-          if (error)
-            {
-              gimp_tool_push_status (tool, display, "%s", error->message);
-              g_clear_error (&error);
-            }
-        }
-      else
-        {
-          gimp_tool_push_status (tool, display,
-                                 _("Shape Fusion applied"));
-        }
-    }
-
-  gimp_draw_tool_stop (GIMP_DRAW_TOOL (tool));
-  gimp_shape_fusion_tool_clear_state (fusion_tool);
+  callback (tool_type,
+            options_type,
+            options_gui_func,
+            context_props,
+            identifier,
+            label,
+            tooltip,
+            menu_label,
+            menu_accel,
+            help_domain,
+            help_id,
+            icon_name,
+            NULL);
 }
 
-static void
-gimp_shape_fusion_tool_motion (GimpTool         *tool,
-                               const GimpCoords *coords,
-                               guint32           time,
-                               GdkModifierType   state,
-                               GimpDisplay      *display)
+void
+ gimp_shape_fusion_tool_register (GimpToolRegisterCallback callback,
+                                  gpointer                 data)
 {
-  GimpShapeFusionTool    *fusion_tool = GIMP_SHAPE_FUSION_TOOL (tool);
-  GimpPathBooleanMode     new_mode;
-
-  if (! fusion_tool->target)
-    return;
-
-  new_mode = gimp_shape_fusion_tool_resolve_mode (fusion_tool, state);
-
-  if (new_mode != fusion_tool->mode)
-    {
-      fusion_tool->mode = new_mode;
-      gimp_shape_fusion_tool_update_preview (fusion_tool, display);
-    }
-}
-
-static void
-gimp_shape_fusion_tool_oper_update (GimpTool         *tool,
-                                    const GimpCoords *coords,
-                                    GdkModifierType   state,
-                                    gboolean          proximity,
-                                    GimpDisplay      *display)
-{
-  if (proximity)
-    gimp_tool_push_status (tool, display,
-                           _("Drag across vector layers to fuse shapes"));
-}
-
-static gboolean
-gimp_shape_fusion_tool_collect_layers (GimpShapeFusionTool *fusion_tool,
-                                       GimpImage           *image)
-{
-  GList           *selected;
-  GList           *iter;
-  GimpVectorLayer *target = NULL;
-  GList           *sources = NULL;
-
-  selected = gimp_image_get_selected_layers (image);
-
-  for (iter = selected; iter; iter = iter->next)
-    {
-      if (! GIMP_IS_VECTOR_LAYER (iter->data))
-        continue;
-
-      if (! target)
-        target = GIMP_VECTOR_LAYER (iter->data);
-      else
-        sources = g_list_append (sources, iter->data);
-    }
-
-  g_list_free (selected);
-
-  if (! target)
-    {
-      GList *layers = gimp_image_get_layer_list (image);
-
-      for (iter = layers; iter; iter = iter->next)
-        {
-          if (! GIMP_IS_VECTOR_LAYER (iter->data))
-            continue;
-
-          if (! target)
-            target = GIMP_VECTOR_LAYER (iter->data);
-          else
-            sources = g_list_append (sources, iter->data);
-        }
-
-      g_list_free (layers);
-    }
-
-  if (! target)
-    {
-      g_list_free (sources);
-      return FALSE;
-    }
-
-  fusion_tool->target  = target;
-  fusion_tool->sources = sources;
-
-  return TRUE;
-}
-
-static void
-gimp_shape_fusion_tool_clear_state (GimpShapeFusionTool *fusion_tool)
-{
-  if (fusion_tool->sources)
-    {
-      g_list_free (fusion_tool->sources);
-      fusion_tool->sources = NULL;
-    }
-
-  g_clear_object (&fusion_tool->preview_path);
-
-  fusion_tool->target = NULL;
-}
-
-static void
-gimp_shape_fusion_tool_update_preview (GimpShapeFusionTool *fusion_tool,
-                                       GimpDisplay         *display)
-{
-  gint strokes = 0;
-
-  g_clear_object (&fusion_tool->preview_path);
-
-  if (! fusion_tool->target)
-    return;
-
-  fusion_tool->preview_path = gimp_path_boolean_preview (fusion_tool->target,
-                                                         fusion_tool->sources,
-                                                         fusion_tool->mode);
-
-  if (fusion_tool->preview_path)
-    strokes = gimp_path_get_n_strokes (fusion_tool->preview_path);
-
-  gimp_tool_push_status (GIMP_TOOL (fusion_tool), display,
-                         ngettext ("Preview contains %d stroke",
-                                   "Preview contains %d strokes",
-                                   strokes),
-                         strokes);
-}
-
-static GimpPathBooleanMode
-gimp_shape_fusion_tool_resolve_mode (GimpShapeFusionTool *fusion_tool,
-                                     GdkModifierType      state)
-{
-  KimpShapeFusionOptions *options =
-    KIMP_SHAPE_FUSION_OPTIONS (gimp_tool_get_options (GIMP_TOOL (fusion_tool)));
-
-  if ((state & GDK_SHIFT_MASK) && options->enable_additive_gesture)
-    return GIMP_PATH_BOOLEAN_MODE_UNION;
-
-  if ((state & GDK_MOD1_MASK) && options->enable_subtractive_gesture)
-    return GIMP_PATH_BOOLEAN_MODE_SUBTRACT;
-
-  return options->mode;
+  gimp_shape_fusion_tool_register_type (GIMP_TYPE_SHAPE_FUSION_TOOL,
+                                        GIMP_TYPE_SHAPE_FUSION_OPTIONS,
+                                        gimp_shape_fusion_options_gui,
+                                        0,
+                                        "gimp-shape-fusion-tool",
+                                        _("Shape Fusion"),
+                                        _("Shape Fusion Tool"),
+                                        N_("_Shape Fusion"), NULL,
+                                        GIMP_HELP_TOOL_SHAPE_FUSION,
+                                        GIMP_ICON_TOOL_PATH,
+                                        callback);
 }

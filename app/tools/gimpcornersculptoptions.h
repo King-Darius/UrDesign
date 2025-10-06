@@ -19,11 +19,7 @@
 
 #pragma once
 
-#include "path/path-enums.h"
-
-#include "gimppathoptions.h"
-
-G_BEGIN_DECLS
+#include "gimptooloptions.h"
 
 #define GIMP_TYPE_CORNER_SCULPT_OPTIONS            (gimp_corner_sculpt_options_get_type ())
 #define GIMP_CORNER_SCULPT_OPTIONS(obj)            (G_TYPE_CHECK_INSTANCE_CAST ((obj), GIMP_TYPE_CORNER_SCULPT_OPTIONS, GimpCornerSculptOptions))
@@ -32,28 +28,22 @@ G_BEGIN_DECLS
 #define GIMP_IS_CORNER_SCULPT_OPTIONS_CLASS(klass) (G_TYPE_CHECK_CLASS_TYPE ((klass), GIMP_TYPE_CORNER_SCULPT_OPTIONS))
 #define GIMP_CORNER_SCULPT_OPTIONS_GET_CLASS(obj)  (G_TYPE_INSTANCE_GET_CLASS ((obj), GIMP_TYPE_CORNER_SCULPT_OPTIONS, GimpCornerSculptOptionsClass))
 
-
-#define GIMP_TYPE_CORNER_MODE (gimp_corner_mode_get_type ())
-
 typedef struct _GimpCornerSculptOptions      GimpCornerSculptOptions;
 typedef struct _GimpCornerSculptOptionsClass GimpCornerSculptOptionsClass;
 
 struct _GimpCornerSculptOptions
 {
-  GimpPathOptions parent_instance;
+  GimpToolOptions      parent_instance;
 
-  GimpCornerMode  corner_mode;
-  gdouble         corner_radius;
+  gdouble              radius;
+  GimpCornerSculptMode mode;
 };
 
 struct _GimpCornerSculptOptionsClass
 {
-  GimpPathOptionsClass parent_class;
+  GimpToolOptionsClass parent_class;
 };
 
-GType      gimp_corner_mode_get_type         (void) G_GNUC_CONST;
 GType      gimp_corner_sculpt_options_get_type (void) G_GNUC_CONST;
 
-GtkWidget *gimp_corner_sculpt_options_gui    (GimpToolOptions *tool_options);
-
-G_END_DECLS
+GtkWidget *gimp_corner_sculpt_options_gui      (GimpToolOptions *tool_options);

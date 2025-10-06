@@ -175,6 +175,29 @@ typedef enum
   GIMP_PAINT_SELECT_MODE_SUBTRACT, /*< desc="Subtract from selection" >*/
 } GimpPaintSelectMode;
 
+
+#define GIMP_TYPE_CORNER_SCULPT_MODE (gimp_corner_sculpt_mode_get_type ())
+
+GType gimp_corner_sculpt_mode_get_type (void) G_GNUC_CONST;
+
+typedef enum
+{
+  GIMP_CORNER_SCULPT_MODE_ROUND,   /*< desc="Round corner"   >*/
+  GIMP_CORNER_SCULPT_MODE_CHAMFER  /*< desc="Chamfer corner" >*/
+} GimpCornerSculptMode;
+
+
+#define GIMP_TYPE_SHAPE_FUSION_MODE (gimp_shape_fusion_mode_get_type ())
+
+GType gimp_shape_fusion_mode_get_type (void) G_GNUC_CONST;
+
+typedef enum
+{
+  GIMP_SHAPE_FUSION_MODE_UNION,      /*< desc="Unite shapes"     >*/
+  GIMP_SHAPE_FUSION_MODE_SUBTRACT,   /*< desc="Subtract shapes"  >*/
+  GIMP_SHAPE_FUSION_MODE_INTERSECT   /*< desc="Intersect shapes" >*/
+} GimpShapeFusionMode;
+
 /*
  * non-registered enums; register them if needed
  */

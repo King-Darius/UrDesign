@@ -19,165 +19,179 @@
 
 #include "config.h"
 
+#include <gtk/gtk.h>
+
+#include "libgimpconfig/gimpconfig.h"
+#include "libgimpwidgets/gimpwidgets.h"
+
+#include "tools-types.h"
+
+#include "widgets/gimppropwidgets.h"
+
 #include "gimpintelliselectoptions.h"
+#include "gimptooloptions-gui.h"
 
-#include "config/gimpguiconfig.h"
-
-struct _GimpIntelliSelectOptions
-{
-  GimpSelectionOptions parent_instance;
-
-  gchar   *model;
-  gchar   *backend;
-};
-
-G_DEFINE_TYPE (GimpIntelliSelectOptions, gimp_intelli_select_options,
-               GIMP_TYPE_SELECTION_OPTIONS)
+#include "gimp-intl.h"
 
 enum
 {
   PROP_0,
-  PROP_MODEL,
-  PROP_BACKEND,
-  PROP_LAST
+  PROP_RADIUS,
+  PROP_THRESHOLD,
+  PROP_SAMPLE_MERGED,
+  PROP_REFINE_EDGES
 };
 
-static GParamSpec *props[PROP_LAST];
+static void   gimp_intelli_select_options_set_property (GObject      *object,
+                                                        guint         property_id,
+                                                        const GValue *value,
+                                                        GParamSpec   *pspec);
+static void   gimp_intelli_select_options_get_property (GObject      *object,
+                                                        guint         property_id,
+                                                        GValue       *value,
+                                                        GParamSpec   *pspec);
+
+G_DEFINE_TYPE (GimpIntelliSelectOptions, gimp_intelli_select_options,
+               GIMP_TYPE_SELECTION_OPTIONS)
 
 static void
-GimpIntelliSelectOptions_finalize (GObject *object)
-{
-  GimpIntelliSelectOptions *options = GIMP_INTELLI_SELECT_OPTIONS (object);
-
-  g_clear_pointer (&options->model, g_free);
-  g_clear_pointer (&options->backend, g_free);
-
-  G_OBJECT_CLASS (gimp_intelli_select_options_parent_class)->finalize (object);
-}
-
-static void
-GimpIntelliSelectOptions_set_property (GObject      *object,
-                                       guint         property_id,
-                                       const GValue *value,
-                                       GParamSpec   *pspec)
-{
-  GimpIntelliSelectOptions *options = GIMP_INTELLI_SELECT_OPTIONS (object);
-
-  switch (property_id)
-    {
-    case PROP_MODEL:
-      gimp_intelli_select_options_set_model (options, g_value_get_string (value));
-      break;
-
-    case PROP_BACKEND:
-      gimp_intelli_select_options_set_backend (options, g_value_get_string (value));
-      break;
-
-    default:
-      G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
-      break;
-    }
-}
-
-static void
-GimpIntelliSelectOptions_get_property (GObject    *object,
-                                       guint       property_id,
-                                       GValue     *value,
-                                       GParamSpec *pspec)
-{
-  GimpIntelliSelectOptions *options = GIMP_INTELLI_SELECT_OPTIONS (object);
-
-  switch (property_id)
-    {
-    case PROP_MODEL:
-      g_value_set_string (value, options->model);
-      break;
-
-    case PROP_BACKEND:
-      g_value_set_string (value, options->backend);
-      break;
-
-    default:
-      G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
-      break;
-    }
-}
-
-static void
-GimpIntelliSelectOptions_class_init (GimpIntelliSelectOptionsClass *klass)
+ gimp_intelli_select_options_class_init (GimpIntelliSelectOptionsClass *klass)
 {
   GObjectClass *object_class = G_OBJECT_CLASS (klass);
 
-  object_class->finalize     = GimpIntelliSelectOptions_finalize;
-  object_class->set_property = GimpIntelliSelectOptions_set_property;
-  object_class->get_property = GimpIntelliSelectOptions_get_property;
+  object_class->set_property = gimp_intelli_select_options_set_property;
+  object_class->get_property = gimp_intelli_select_options_get_property;
 
-  props[PROP_MODEL] =
-    g_param_spec_string ("model",
-                         "model",
-                         "The identifier of the model used for inference",
-                         NULL,
-                         G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
+  GIMP_CONFIG_PROP_DOUBLE (object_class, PROP_RADIUS,
+                           "sample-radius",
+                           _("Sample radius"),
+                           _("Radius for generating the smart selection context"),
+                           1.0, 512.0, 32.0,
+                           GIMP_PARAM_STATIC_STRINGS);
 
-  props[PROP_BACKEND] =
-    g_param_spec_string ("backend",
-                         "backend",
-                         "The identifier of the inference backend",
-                         NULL,
-                         G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
+  GIMP_CONFIG_PROP_DOUBLE (object_class, PROP_THRESHOLD,
+                           "detection-threshold",
+                           _("Detection threshold"),
+                           _("Normalized similarity threshold for segmentation"),
+                           0.0, 1.0, 0.18,
+                           GIMP_PARAM_STATIC_STRINGS);
 
-  g_object_class_install_properties (object_class, PROP_LAST, props);
+  GIMP_CONFIG_PROP_BOOLEAN (object_class, PROP_SAMPLE_MERGED,
+                            "sample-merged",
+                            _("Sample merged"),
+                            _("Use the composite of visible layers for sampling"),
+                            TRUE,
+                            GIMP_PARAM_STATIC_STRINGS);
+
+  GIMP_CONFIG_PROP_BOOLEAN (object_class, PROP_REFINE_EDGES,
+                            "refine-edges",
+                            _("Refine edges"),
+                            _("Smooth and expand the resulting selection mask"),
+                            TRUE,
+                            GIMP_PARAM_STATIC_STRINGS);
 }
 
 static void
-GimpIntelliSelectOptions_init (GimpIntelliSelectOptions *options)
+ gimp_intelli_select_options_init (GimpIntelliSelectOptions *options)
 {
-  options->model   = g_strdup ("builtin-default");
-  options->backend = g_strdup ("auto");
+  options->radius        = 32.0;
+  options->threshold     = 0.18;
+  options->sample_merged = TRUE;
+  options->refine_edges  = TRUE;
 }
 
-const gchar *
-gimp_intelli_select_options_get_model (GimpIntelliSelectOptions *options)
+static void
+ gimp_intelli_select_options_set_property (GObject      *object,
+                                           guint         property_id,
+                                           const GValue *value,
+                                           GParamSpec   *pspec)
 {
-  g_return_val_if_fail (GIMP_IS_INTELLI_SELECT_OPTIONS (options), NULL);
+  GimpIntelliSelectOptions *options = GIMP_INTELLI_SELECT_OPTIONS (object);
 
-  return options->model;
+  switch (property_id)
+    {
+    case PROP_RADIUS:
+      options->radius = g_value_get_double (value);
+      break;
+
+    case PROP_THRESHOLD:
+      options->threshold = g_value_get_double (value);
+      break;
+
+    case PROP_SAMPLE_MERGED:
+      options->sample_merged = g_value_get_boolean (value);
+      break;
+
+    case PROP_REFINE_EDGES:
+      options->refine_edges = g_value_get_boolean (value);
+      break;
+
+    default:
+      G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
+      break;
+    }
 }
 
-const gchar *
-gimp_intelli_select_options_get_backend (GimpIntelliSelectOptions *options)
+static void
+ gimp_intelli_select_options_get_property (GObject    *object,
+                                           guint       property_id,
+                                           GValue     *value,
+                                           GParamSpec *pspec)
 {
-  g_return_val_if_fail (GIMP_IS_INTELLI_SELECT_OPTIONS (options), NULL);
+  GimpIntelliSelectOptions *options = GIMP_INTELLI_SELECT_OPTIONS (object);
 
-  return options->backend;
+  switch (property_id)
+    {
+    case PROP_RADIUS:
+      g_value_set_double (value, options->radius);
+      break;
+
+    case PROP_THRESHOLD:
+      g_value_set_double (value, options->threshold);
+      break;
+
+    case PROP_SAMPLE_MERGED:
+      g_value_set_boolean (value, options->sample_merged);
+      break;
+
+    case PROP_REFINE_EDGES:
+      g_value_set_boolean (value, options->refine_edges);
+      break;
+
+    default:
+      G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
+      break;
+    }
 }
 
-void
-gimp_intelli_select_options_set_model (GimpIntelliSelectOptions *options,
-                                         const gchar             *model)
+GtkWidget *
+ gimp_intelli_select_options_gui (GimpToolOptions *tool_options)
 {
-  g_return_if_fail (GIMP_IS_INTELLI_SELECT_OPTIONS (options));
+  GObject   *config = G_OBJECT (tool_options);
+  GtkWidget *vbox;
+  GtkWidget *widget;
 
-  if (g_strcmp0 (options->model, model) == 0)
-    return;
+  vbox = gimp_tool_options_gui_new (tool_options);
 
-  g_free (options->model);
-  options->model = g_strdup (model);
+  widget = gimp_prop_spin_scale_new (config, "sample-radius",
+                                     1.0, 256.0, 1);
+  gimp_scale_entry_set_digits (GIMP_SCALE_ENTRY (widget), 1);
+  gtk_box_pack_start (GTK_BOX (vbox), widget, FALSE, FALSE, 0);
 
-  g_object_notify_by_pspec (G_OBJECT (options), props[PROP_MODEL]);
-}
+  widget = gimp_prop_spin_scale_new (config, "detection-threshold",
+                                     0.01, 1.0, 0.01);
+  gimp_scale_entry_set_digits (GIMP_SCALE_ENTRY (widget), 2);
+  gtk_box_pack_start (GTK_BOX (vbox), widget, FALSE, FALSE, 0);
 
-void
-gimp_intelli_select_options_set_backend (GimpIntelliSelectOptions *options,
-                                           const gchar             *backend)
-{
-  g_return_if_fail (GIMP_IS_INTELLI_SELECT_OPTIONS (options));
+  widget = gimp_prop_check_button_new (config,
+                                       "sample-merged",
+                                       _("Sample merged"));
+  gtk_box_pack_start (GTK_BOX (vbox), widget, FALSE, FALSE, 0);
 
-  if (g_strcmp0 (options->backend, backend) == 0)
-    return;
+  widget = gimp_prop_check_button_new (config,
+                                       "refine-edges",
+                                       _("Refine edges"));
+  gtk_box_pack_start (GTK_BOX (vbox), widget, FALSE, FALSE, 0);
 
-  g_free (options->backend);
-  options->backend = g_strdup (backend);
-
-  g_object_notify_by_pspec (G_OBJECT (options), props[PROP_BACKEND]);
+  return vbox;
 }

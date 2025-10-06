@@ -1,6 +1,8 @@
 /* GIMP - The GNU Image Manipulation Program
  * Copyright (C) 1995 Spencer Kimball and Peter Mattis
  *
+ * gimpshapefusiontool.h
+ *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 3 of the License, or
@@ -17,11 +19,7 @@
 
 #pragma once
 
-#include "gimpdrawtool.h"
-
-#include "kimpshapefusionoptions.h"
-
-G_BEGIN_DECLS
+#include "gimptool.h"
 
 #define GIMP_TYPE_SHAPE_FUSION_TOOL            (gimp_shape_fusion_tool_get_type ())
 #define GIMP_SHAPE_FUSION_TOOL(obj)            (G_TYPE_CHECK_INSTANCE_CAST ((obj), GIMP_TYPE_SHAPE_FUSION_TOOL, GimpShapeFusionTool))
@@ -30,29 +28,20 @@ G_BEGIN_DECLS
 #define GIMP_IS_SHAPE_FUSION_TOOL_CLASS(klass) (G_TYPE_CHECK_CLASS_TYPE ((klass), GIMP_TYPE_SHAPE_FUSION_TOOL))
 #define GIMP_SHAPE_FUSION_TOOL_GET_CLASS(obj)  (G_TYPE_INSTANCE_GET_CLASS ((obj), GIMP_TYPE_SHAPE_FUSION_TOOL, GimpShapeFusionToolClass))
 
-
-typedef struct _GimpShapeFusionTool       GimpShapeFusionTool;
-typedef struct _GimpShapeFusionToolClass  GimpShapeFusionToolClass;
+typedef struct _GimpShapeFusionTool      GimpShapeFusionTool;
+typedef struct _GimpShapeFusionToolClass GimpShapeFusionToolClass;
 
 struct _GimpShapeFusionTool
 {
-  GimpDrawTool          parent_instance;
-
-  GimpVectorLayer      *target;
-  GList                *sources;
-  GimpPathBooleanMode   mode;
-  GimpPath             *preview_path;
+  GimpTool parent_instance;
 };
 
 struct _GimpShapeFusionToolClass
 {
-  GimpDrawToolClass parent_class;
+  GimpToolClass parent_class;
 };
 
+GType gimp_shape_fusion_tool_get_type (void) G_GNUC_CONST;
 
-GType      gimp_shape_fusion_tool_get_type (void) G_GNUC_CONST;
-
-void       gimp_shape_fusion_tool_register (GimpToolRegisterCallback  callback,
-                                            gpointer                  data);
-
-G_END_DECLS
+void  gimp_shape_fusion_tool_register (GimpToolRegisterCallback callback,
+                                       gpointer                 data);

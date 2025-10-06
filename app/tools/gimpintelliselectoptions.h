@@ -21,14 +21,31 @@
 
 #include "gimpselectionoptions.h"
 
-#define GIMP_TYPE_INTELLI_SELECT_OPTIONS (gimp_intelli_select_options_get_type ())
-G_DECLARE_FINAL_TYPE (GimpIntelliSelectOptions, gimp_intelli_select_options,
-                      GIMP, INTELLI_SELECT_OPTIONS, GimpSelectionOptions)
+#define GIMP_TYPE_INTELLI_SELECT_OPTIONS            (gimp_intelli_select_options_get_type ())
+#define GIMP_INTELLI_SELECT_OPTIONS(obj)            (G_TYPE_CHECK_INSTANCE_CAST ((obj), GIMP_TYPE_INTELLI_SELECT_OPTIONS, GimpIntelliSelectOptions))
+#define GIMP_INTELLI_SELECT_OPTIONS_CLASS(klass)    (G_TYPE_CHECK_CLASS_CAST ((klass), GIMP_TYPE_INTELLI_SELECT_OPTIONS, GimpIntelliSelectOptionsClass))
+#define GIMP_IS_INTELLI_SELECT_OPTIONS(obj)         (G_TYPE_CHECK_INSTANCE_TYPE ((obj), GIMP_TYPE_INTELLI_SELECT_OPTIONS))
+#define GIMP_IS_INTELLI_SELECT_OPTIONS_CLASS(klass) (G_TYPE_CHECK_CLASS_TYPE ((klass), GIMP_TYPE_INTELLI_SELECT_OPTIONS))
+#define GIMP_INTELLI_SELECT_OPTIONS_GET_CLASS(obj)  (G_TYPE_INSTANCE_GET_CLASS ((obj), GIMP_TYPE_INTELLI_SELECT_OPTIONS, GimpIntelliSelectOptionsClass))
 
-const gchar * gimp_intelli_select_options_get_model   (GimpIntelliSelectOptions *options);
-const gchar * gimp_intelli_select_options_get_backend (GimpIntelliSelectOptions *options);
+typedef struct _GimpIntelliSelectOptions      GimpIntelliSelectOptions;
+typedef struct _GimpIntelliSelectOptionsClass GimpIntelliSelectOptionsClass;
 
-void gimp_intelli_select_options_set_model   (GimpIntelliSelectOptions *options,
-                                              const gchar             *model);
-void gimp_intelli_select_options_set_backend (GimpIntelliSelectOptions *options,
-                                              const gchar             *backend);
+struct _GimpIntelliSelectOptions
+{
+  GimpSelectionOptions parent_instance;
+
+  gdouble  radius;
+  gdouble  threshold;
+  gboolean sample_merged;
+  gboolean refine_edges;
+};
+
+struct _GimpIntelliSelectOptionsClass
+{
+  GimpSelectionOptionsClass parent_class;
+};
+
+GType      gimp_intelli_select_options_get_type (void) G_GNUC_CONST;
+
+GtkWidget *gimp_intelli_select_options_gui      (GimpToolOptions *tool_options);

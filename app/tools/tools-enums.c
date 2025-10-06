@@ -368,5 +368,67 @@ gimp_paint_select_mode_get_type (void)
 }
 
 
+
+GType
+gimp_corner_sculpt_mode_get_type (void)
+{
+  static const GEnumValue values[] =
+  {
+    { GIMP_CORNER_SCULPT_MODE_ROUND, "GIMP_CORNER_SCULPT_MODE_ROUND", "round" },
+    { GIMP_CORNER_SCULPT_MODE_CHAMFER, "GIMP_CORNER_SCULPT_MODE_CHAMFER", "chamfer" },
+    { 0, NULL, NULL }
+  };
+
+  static const GimpEnumDesc descs[] =
+  {
+    { GIMP_CORNER_SCULPT_MODE_ROUND, NC_("corner-sculpt-mode", "Round corner"), NULL },
+    { GIMP_CORNER_SCULPT_MODE_CHAMFER, NC_("corner-sculpt-mode", "Chamfer corner"), NULL },
+    { 0, NULL, NULL }
+  };
+
+  static GType type = 0;
+
+  if (G_UNLIKELY (! type))
+    {
+      type = g_enum_register_static ("GimpCornerSculptMode", values);
+      gimp_type_set_translation_context (type, "corner-sculpt-mode");
+      gimp_enum_set_value_descriptions (type, descs);
+    }
+
+  return type;
+}
+
+GType
+gimp_shape_fusion_mode_get_type (void)
+{
+  static const GEnumValue values[] =
+  {
+    { GIMP_SHAPE_FUSION_MODE_UNION, "GIMP_SHAPE_FUSION_MODE_UNION", "union" },
+    { GIMP_SHAPE_FUSION_MODE_SUBTRACT, "GIMP_SHAPE_FUSION_MODE_SUBTRACT", "subtract" },
+    { GIMP_SHAPE_FUSION_MODE_INTERSECT, "GIMP_SHAPE_FUSION_MODE_INTERSECT", "intersect" },
+    { 0, NULL, NULL }
+  };
+
+  static const GimpEnumDesc descs[] =
+  {
+    { GIMP_SHAPE_FUSION_MODE_UNION, NC_("shape-fusion-mode", "Unite shapes"), NULL },
+    { GIMP_SHAPE_FUSION_MODE_SUBTRACT, NC_("shape-fusion-mode", "Subtract shapes"), NULL },
+    { GIMP_SHAPE_FUSION_MODE_INTERSECT, NC_("shape-fusion-mode", "Intersect shapes"), NULL },
+    { 0, NULL, NULL }
+  };
+
+  static GType type = 0;
+
+  if (G_UNLIKELY (! type))
+    {
+      type = g_enum_register_static ("GimpShapeFusionMode", values);
+      gimp_type_set_translation_context (type, "shape-fusion-mode");
+      gimp_enum_set_value_descriptions (type, descs);
+    }
+
+  return type;
+}
+
+
 /* Generated data ends here */
 

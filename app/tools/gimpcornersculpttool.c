@@ -19,248 +19,164 @@
 
 #include "config.h"
 
+#include <gegl.h>
+
+#include "libgimpconfig/gimpconfig.h"
+
 #include "tools-types.h"
 
+#include "core/gimpcontext.h"
 #include "core/gimpimage.h"
-#include "core/gimpimage-undo-push.h"
-#include "core/gimpitem.h"
+#include "core/gimpvectors.h"
 
-#include "path/gimpanchor.h"
+#include "display/gimpdisplay.h"
+
 #include "path/gimppath.h"
-#include "path/gimpstroke.h"
-
-#include "widgets/gimphelp-ids.h"
+#include "path/gimppath-corners.h"
 
 #include "gimpcornersculptoptions.h"
 #include "gimpcornersculpttool.h"
+#include "gimptoolcontrol.h"
 
 #include "gimp-intl.h"
 
 
+static void     gimp_corner_sculpt_tool_button_press (GimpTool              *tool,
+                                                      const GimpCoords      *coords,
+                                                      guint32                time,
+                                                      GdkModifierType        state,
+                                                      GimpButtonPressType    press_type,
+                                                      GimpDisplay           *display);
+
+static void     gimp_corner_sculpt_tool_register_type (GType                 tool_type,
+                                                       GType                 options_type,
+                                                       GimpToolOptionsGUIFunc gui_func,
+                                                       GimpContextPropMask   context_props,
+                                                       const gchar          *identifier,
+                                                       const gchar          *label,
+                                                       const gchar          *tooltip,
+                                                       const gchar          *menu_label,
+                                                       const gchar          *menu_accel,
+                                                       const gchar          *help_domain,
+                                                       const gchar          *help_id,
+                                                       const gchar          *icon_name,
+                                                       gpointer              data);
+
 G_DEFINE_TYPE (GimpCornerSculptTool, gimp_corner_sculpt_tool,
-               GIMP_TYPE_PATH_TOOL)
-
-typedef struct
-{
-  GimpStroke *stroke;
-  gint        anchor_index;
-} GimpCornerSculptTarget;
-
-static void   gimp_corner_sculpt_tool_constructed  (GObject            *object);
-static void   gimp_corner_sculpt_tool_dispose      (GObject            *object);
-static void   gimp_corner_sculpt_tool_options_notify
-                                                   (GObject            *options,
-                                                    GParamSpec         *pspec,
-                                                    gpointer            data);
-static void   gimp_corner_sculpt_tool_apply        (GimpCornerSculptTool *tool);
-static void   gimp_corner_sculpt_tool_targets_free (GArray             *targets);
-
-
-void
-gimp_corner_sculpt_tool_register (GimpToolRegisterCallback callback,
-                                  gpointer                 data)
-{
-  (* callback) (GIMP_TYPE_CORNER_SCULPT_TOOL,
-                GIMP_TYPE_CORNER_SCULPT_OPTIONS,
-                gimp_corner_sculpt_options_gui,
-                GIMP_CONTEXT_PROP_MASK_NONE,
-                "gimp-corner-sculpt-tool",
-                _("Corner Sculpt"),
-                _("Corner Sculpt Tool: Refine and reshape vector corners"),
-                N_("Corner _Sculpt"), NULL,
-                NULL, GIMP_HELP_TOOL_CORNER_SCULPT,
-                GIMP_ICON_TOOL_CORNER_SCULPT,
-                data);
-}
+               GIMP_TYPE_DRAW_TOOL)
 
 static void
 gimp_corner_sculpt_tool_class_init (GimpCornerSculptToolClass *klass)
 {
-  GObjectClass *object_class = G_OBJECT_CLASS (klass);
+  GimpToolClass *tool_class = GIMP_TOOL_CLASS (klass);
 
-  object_class->constructed = gimp_corner_sculpt_tool_constructed;
-  object_class->dispose     = gimp_corner_sculpt_tool_dispose;
+  tool_class->button_press = gimp_corner_sculpt_tool_button_press;
 }
 
 static void
 gimp_corner_sculpt_tool_init (GimpCornerSculptTool *tool)
 {
-  GimpTool *gimp_tool = GIMP_TOOL (tool);
-
-  tool->mode_notify_id   = 0;
-  tool->radius_notify_id = 0;
-
-  gimp_tool_control_set_tool_cursor (gimp_tool->control,
+  gimp_tool_control_set_tool_cursor (GIMP_TOOL (tool)->control,
                                      GIMP_TOOL_CURSOR_PATHS);
-  gimp_tool_control_set_precision (gimp_tool->control,
+  gimp_tool_control_set_wants_click (GIMP_TOOL (tool)->control, TRUE);
+  gimp_tool_control_set_wants_double_click (GIMP_TOOL (tool)->control, FALSE);
+  gimp_tool_control_set_snap_to (GIMP_TOOL (tool)->control, TRUE);
+  gimp_tool_control_set_precision (GIMP_TOOL (tool)->control,
                                    GIMP_CURSOR_PRECISION_SUBPIXEL);
 }
 
 static void
-gimp_corner_sculpt_tool_constructed (GObject *object)
+gimp_corner_sculpt_tool_button_press (GimpTool              *tool,
+                                      const GimpCoords      *coords,
+                                      guint32                time,
+                                      GdkModifierType        state,
+                                      GimpButtonPressType    press_type,
+                                      GimpDisplay           *display)
 {
-  GimpCornerSculptTool    *tool    = GIMP_CORNER_SCULPT_TOOL (object);
-  GimpTool                *gimp_tool = GIMP_TOOL (tool);
-  GimpToolOptions         *tool_options;
-  GObject                 *options_object;
+  GimpCornerSculptOptions *options;
+  GimpContext             *context;
+  GimpImage               *image;
+  GimpPath                *path;
 
-  G_OBJECT_CLASS (gimp_corner_sculpt_tool_parent_class)->constructed (object);
-
-  tool_options = gimp_tool_get_options (gimp_tool);
-  options_object = tool_options ? G_OBJECT (tool_options) : NULL;
-
-  if (options_object)
-    {
-      tool->mode_notify_id =
-        g_signal_connect (options_object,
-                          "notify::corner-mode",
-                          G_CALLBACK (gimp_corner_sculpt_tool_options_notify),
-                          tool);
-      tool->radius_notify_id =
-        g_signal_connect (options_object,
-                          "notify::corner-radius",
-                          G_CALLBACK (gimp_corner_sculpt_tool_options_notify),
-                          tool);
-    }
-}
-
-static void
-gimp_corner_sculpt_tool_dispose (GObject *object)
-{
-  GimpCornerSculptTool *tool = GIMP_CORNER_SCULPT_TOOL (object);
-  GimpToolOptions      *tool_options;
-
-  tool_options = gimp_tool_get_options (GIMP_TOOL (tool));
-
-  if (tool_options)
-    {
-      GObject *options_object = G_OBJECT (tool_options);
-
-      if (tool->mode_notify_id)
-        {
-          g_signal_handler_disconnect (options_object, tool->mode_notify_id);
-          tool->mode_notify_id = 0;
-        }
-
-      if (tool->radius_notify_id)
-        {
-          g_signal_handler_disconnect (options_object, tool->radius_notify_id);
-          tool->radius_notify_id = 0;
-        }
-    }
-
-  G_OBJECT_CLASS (gimp_corner_sculpt_tool_parent_class)->dispose (object);
-}
-
-static void
-gimp_corner_sculpt_tool_options_notify (GObject    *options,
-                                        GParamSpec *pspec,
-                                        gpointer    data)
-{
-  GimpCornerSculptTool *tool = GIMP_CORNER_SCULPT_TOOL (data);
-
-  gimp_corner_sculpt_tool_apply (tool);
-}
-
-static void
-gimp_corner_sculpt_tool_apply (GimpCornerSculptTool *tool)
-{
-  GimpPathTool              *path_tool = GIMP_PATH_TOOL (tool);
-  GimpCornerSculptOptions   *options;
-  GimpPath                  *path;
-  GArray                    *targets;
-  GimpStroke                *stroke = NULL;
-  gboolean                   changed = FALSE;
-
-  g_return_if_fail (GIMP_IS_CORNER_SCULPT_TOOL (tool));
-
-  options = GIMP_CORNER_SCULPT_OPTIONS (gimp_tool_get_options (GIMP_TOOL (tool)));
-  path    = path_tool->path;
-
-  if (! options || ! path)
+  if (press_type != GIMP_BUTTON_PRESS_NORMAL)
     return;
 
-  targets = g_array_new (FALSE, FALSE, sizeof (GimpCornerSculptTarget));
+  options = GIMP_CORNER_SCULPT_OPTIONS (tool->options);
+  context = gimp_tool_get_context (tool);
+  image   = gimp_display_get_image (display);
 
-  while ((stroke = gimp_path_stroke_get_next (path, stroke)))
+  if (! image)
+    return;
+
+  path = gimp_context_get_vectors (context);
+
+  if (! path)
+    path = gimp_image_pick_path (image, coords->x, coords->y, 6.0, 6.0);
+
+  if (! path)
     {
-      GList *link;
-      gint   anchor_index = 0;
-
-      for (link = stroke->anchors->head; link; link = link->next)
-        {
-          GimpAnchor *anchor = link->data;
-
-          if (anchor->type != GIMP_ANCHOR_ANCHOR)
-            continue;
-
-          if (anchor->selected)
-            {
-              GimpCornerSculptTarget target = { g_object_ref (stroke), anchor_index };
-              g_array_append_val (targets, target);
-            }
-
-          anchor_index++;
-        }
-    }
-
-  if (targets->len == 0)
-    {
-      gimp_corner_sculpt_tool_targets_free (targets);
+      gimp_tool_message (tool, display,
+                         _("Select or pick a path to sculpt."));
       return;
     }
 
-  {
-    GimpImage *image = GIMP_IMAGE (gimp_item_get_image (GIMP_ITEM (path)));
+  if (! gimp_path_apply_corner_profile (path,
+                                         options->radius,
+                                         options->mode))
+    {
+      gimp_tool_message (tool, display,
+                         _("No corners were adjusted."));
+      return;
+    }
 
-    if (image)
-      {
-        guint i;
-        gdouble radius = MAX (0.0, options->corner_radius);
-
-        gimp_image_undo_push_path_mod (image,
-                                       C_("undo-type", "Sculpt corners"),
-                                       path);
-
-        gimp_path_freeze (path);
-
-        for (i = 0; i < targets->len; i++)
-          {
-            GimpCornerSculptTarget target =
-              g_array_index (targets, GimpCornerSculptTarget, i);
-
-            gimp_stroke_corner_set (target.stroke,
-                                     target.anchor_index,
-                                     options->corner_mode,
-                                     radius);
-            changed = TRUE;
-          }
-
-        gimp_path_thaw (path);
-
-        if (changed)
-          gimp_image_flush (image);
-      }
-  }
-
-  gimp_corner_sculpt_tool_targets_free (targets);
+  gimp_image_flush (image);
 }
 
 static void
-gimp_corner_sculpt_tool_targets_free (GArray *targets)
+gimp_corner_sculpt_tool_register_type (GType                  tool_type,
+                                       GType                  options_type,
+                                       GimpToolOptionsGUIFunc options_gui_func,
+                                       GimpContextPropMask    context_props,
+                                       const gchar           *identifier,
+                                       const gchar           *label,
+                                       const gchar           *tooltip,
+                                       const gchar           *menu_label,
+                                       const gchar           *menu_accel,
+                                       const gchar           *help_domain,
+                                       const gchar           *help_id,
+                                       const gchar           *icon_name,
+                                       gpointer               data)
 {
-  guint i;
+  GimpToolRegisterCallback callback = (GimpToolRegisterCallback) data;
 
-  if (! targets)
-    return;
+  callback (tool_type,
+            options_type,
+            options_gui_func,
+            context_props,
+            identifier,
+            label,
+            tooltip,
+            menu_label,
+            menu_accel,
+            help_domain,
+            help_id,
+            icon_name,
+            NULL);
+}
 
-  for (i = 0; i < targets->len; i++)
-    {
-      GimpCornerSculptTarget target =
-        g_array_index (targets, GimpCornerSculptTarget, i);
-
-      g_object_unref (target.stroke);
-    }
-
-  g_array_free (targets, TRUE);
+void
+gimp_corner_sculpt_tool_register (GimpToolRegisterCallback callback,
+                                  gpointer                 data)
+{
+  gimp_corner_sculpt_tool_register_type (GIMP_TYPE_CORNER_SCULPT_TOOL,
+                                         GIMP_TYPE_CORNER_SCULPT_OPTIONS,
+                                         gimp_corner_sculpt_options_gui,
+                                         0,
+                                         "gimp-corner-sculpt-tool",
+                                         _("Corner Sculpt"),
+                                         _("Corner Sculpt Tool"),
+                                         N_("_Corner Sculpt"), NULL,
+                                         GIMP_HELP_TOOL_CORNER_SCULPT,
+                                         GIMP_ICON_TOOL_PATH,
+                                         callback);
 }

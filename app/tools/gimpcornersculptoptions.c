@@ -19,63 +19,39 @@
 
 #include "config.h"
 
+#include <gegl.h>
 #include <gtk/gtk.h>
 
-#include "libgimpbase/gimpbase.h"
+#include "libgimpconfig/gimpconfig.h"
+#include "libgimpwidgets/gimpwidgets.h"
 
 #include "tools-types.h"
-
-#include "core/gimp.h"
 
 #include "widgets/gimppropwidgets.h"
 
 #include "gimpcornersculptoptions.h"
+#include "gimptooloptions-gui.h"
 
 #include "gimp-intl.h"
-
 
 enum
 {
   PROP_0,
-  PROP_CORNER_MODE,
-  PROP_CORNER_RADIUS
+  PROP_RADIUS,
+  PROP_MODE
 };
 
-static void      gimp_corner_sculpt_options_set_property (GObject      *object,
-                                                          guint         property_id,
-                                                          const GValue *value,
-                                                          GParamSpec   *pspec);
-static void      gimp_corner_sculpt_options_get_property (GObject      *object,
-                                                          guint         property_id,
-                                                          GValue       *value,
-                                                          GParamSpec   *pspec);
-static GtkWidget *gimp_corner_sculpt_options_create_popover (GimpCornerSculptOptions *options,
-                                                             GtkWidget               *button);
-
+static void   gimp_corner_sculpt_options_set_property (GObject      *object,
+                                                       guint         property_id,
+                                                       const GValue *value,
+                                                       GParamSpec   *pspec);
+static void   gimp_corner_sculpt_options_get_property (GObject      *object,
+                                                       guint         property_id,
+                                                       GValue       *value,
+                                                       GParamSpec   *pspec);
 
 G_DEFINE_TYPE (GimpCornerSculptOptions, gimp_corner_sculpt_options,
-               GIMP_TYPE_PATH_OPTIONS)
-
-GType
-gimp_corner_mode_get_type (void)
-{
-  static GType type_id = 0;
-
-  if (g_once_init_enter (&type_id))
-    {
-      static const GEnumValue values[] =
-      {
-        { GIMP_CORNER_MODE_CHAMFER,  "GIMP_CORNER_MODE_CHAMFER",  "chamfer"  },
-        { GIMP_CORNER_MODE_ROUND,    "GIMP_CORNER_MODE_ROUND",    "round"    },
-        { GIMP_CORNER_MODE_INVERTED, "GIMP_CORNER_MODE_INVERTED", "inverted" },
-        { 0, NULL, NULL }
-      };
-      GType tmp = g_enum_register_static ("GimpCornerMode", values);
-      g_once_init_leave (&type_id, tmp);
-    }
-
-  return type_id;
-}
+               GIMP_TYPE_TOOL_OPTIONS)
 
 static void
 gimp_corner_sculpt_options_class_init (GimpCornerSculptOptionsClass *klass)
@@ -85,47 +61,45 @@ gimp_corner_sculpt_options_class_init (GimpCornerSculptOptionsClass *klass)
   object_class->set_property = gimp_corner_sculpt_options_set_property;
   object_class->get_property = gimp_corner_sculpt_options_get_property;
 
-  g_object_class_install_property (object_class, PROP_CORNER_MODE,
-                                   g_param_spec_enum ("corner-mode",
-                                                      "Corner Mode",
-                                                      "Corner shape applied to selected nodes",
-                                                      GIMP_TYPE_CORNER_MODE,
-                                                      GIMP_CORNER_MODE_CHAMFER,
-                                                      GIMP_PARAM_STATIC_STRINGS |
-                                                      G_PARAM_READWRITE));
+  GIMP_CONFIG_PROP_DOUBLE (object_class, PROP_RADIUS,
+                           "corner-radius",
+                           _("Radius"),
+                           _("Corner radius"),
+                           0.0, 512.0, 12.0,
+                           GIMP_PARAM_STATIC_STRINGS);
 
-  g_object_class_install_property (object_class, PROP_CORNER_RADIUS,
-                                   g_param_spec_double ("corner-radius",
-                                                        "Corner Radius",
-                                                        "Corner radius to apply during sculpting",
-                                                        0.0, 1000.0, 0.0,
-                                                        GIMP_PARAM_STATIC_STRINGS |
-                                                        G_PARAM_READWRITE));
+  GIMP_CONFIG_PROP_ENUM (object_class, PROP_MODE,
+                         "corner-mode",
+                         _("Corner Style"),
+                         _("Corner profile"),
+                         GIMP_TYPE_CORNER_SCULPT_MODE,
+                         GIMP_CORNER_SCULPT_MODE_ROUND,
+                         GIMP_PARAM_STATIC_STRINGS);
 }
 
 static void
 gimp_corner_sculpt_options_init (GimpCornerSculptOptions *options)
 {
-  options->corner_mode   = GIMP_CORNER_MODE_CHAMFER;
-  options->corner_radius = 0.0;
+  options->radius = 12.0;
+  options->mode   = GIMP_CORNER_SCULPT_MODE_ROUND;
 }
 
 static void
 gimp_corner_sculpt_options_set_property (GObject      *object,
-                                         guint         property_id,
-                                         const GValue *value,
-                                         GParamSpec   *pspec)
+                                          guint         property_id,
+                                          const GValue *value,
+                                          GParamSpec   *pspec)
 {
   GimpCornerSculptOptions *options = GIMP_CORNER_SCULPT_OPTIONS (object);
 
   switch (property_id)
     {
-    case PROP_CORNER_MODE:
-      options->corner_mode = g_value_get_enum (value);
+    case PROP_RADIUS:
+      options->radius = g_value_get_double (value);
       break;
 
-    case PROP_CORNER_RADIUS:
-      options->corner_radius = g_value_get_double (value);
+    case PROP_MODE:
+      options->mode = g_value_get_enum (value);
       break;
 
     default:
@@ -136,20 +110,20 @@ gimp_corner_sculpt_options_set_property (GObject      *object,
 
 static void
 gimp_corner_sculpt_options_get_property (GObject    *object,
-                                         guint       property_id,
-                                         GValue     *value,
-                                         GParamSpec *pspec)
+                                          guint       property_id,
+                                          GValue     *value,
+                                          GParamSpec *pspec)
 {
   GimpCornerSculptOptions *options = GIMP_CORNER_SCULPT_OPTIONS (object);
 
   switch (property_id)
     {
-    case PROP_CORNER_MODE:
-      g_value_set_enum (value, options->corner_mode);
+    case PROP_RADIUS:
+      g_value_set_double (value, options->radius);
       break;
 
-    case PROP_CORNER_RADIUS:
-      g_value_set_double (value, options->corner_radius);
+    case PROP_MODE:
+      g_value_set_enum (value, options->mode);
       break;
 
     default:
@@ -161,52 +135,19 @@ gimp_corner_sculpt_options_get_property (GObject    *object,
 GtkWidget *
 gimp_corner_sculpt_options_gui (GimpToolOptions *tool_options)
 {
-  GtkWidget               *vbox;
-  GtkWidget               *button;
-  GimpCornerSculptOptions *options = GIMP_CORNER_SCULPT_OPTIONS (tool_options);
+  GObject   *config = G_OBJECT (tool_options);
+  GtkWidget *vbox;
+  GtkWidget *widget;
 
-  vbox = gimp_path_options_gui (tool_options);
+  vbox = gimp_tool_options_gui_new (tool_options);
 
-  button = gtk_menu_button_new ();
-  gtk_button_set_label (GTK_BUTTON (button), _("Corner Controls"));
-  gtk_box_pack_start (GTK_BOX (vbox), button, FALSE, FALSE, 0);
-  gtk_widget_show (button);
+  widget = gimp_prop_spin_scale_new (config, "corner-radius",
+                                     1.0, 64.0, 1);
+  gimp_scale_entry_set_digits (GIMP_SCALE_ENTRY (widget), 2);
+  gtk_box_pack_start (GTK_BOX (vbox), widget, FALSE, FALSE, 0);
 
-  gtk_menu_button_set_popover (GTK_MENU_BUTTON (button),
-                               gimp_corner_sculpt_options_create_popover (options,
-                                                                           button));
+  widget = gimp_prop_enum_combo_box_new (config, "corner-mode", 0, 0);
+  gtk_box_pack_start (GTK_BOX (vbox), widget, FALSE, FALSE, 0);
 
   return vbox;
-}
-
-static GtkWidget *
-gimp_corner_sculpt_options_create_popover (GimpCornerSculptOptions *options,
-                                             GtkWidget               *button)
-{
-  GtkWidget *popover;
-  GtkWidget *grid;
-  GtkWidget *mode_box;
-  GtkWidget *radius;
-
-  popover = gtk_popover_new (button);
-
-  grid = gtk_box_new (GTK_ORIENTATION_VERTICAL, 6);
-  gtk_widget_set_margin_start (grid, 12);
-  gtk_widget_set_margin_end (grid, 12);
-  gtk_widget_set_margin_top (grid, 12);
-  gtk_widget_set_margin_bottom (grid, 12);
-  gtk_widget_show (grid);
-  gtk_container_add (GTK_CONTAINER (popover), grid);
-
-  mode_box = gimp_prop_enum_radio_box_new (G_OBJECT (options),
-                                           "corner-mode", 1, 0);
-  gtk_box_pack_start (GTK_BOX (grid), mode_box, FALSE, FALSE, 0);
-  gtk_widget_show (mode_box);
-
-  radius = gimp_prop_spin_button_new (G_OBJECT (options), "corner-radius",
-                                      0.1, 1.0, 2);
-  gtk_box_pack_start (GTK_BOX (grid), radius, FALSE, FALSE, 0);
-  gtk_widget_show (radius);
-
-  return popover;
 }
