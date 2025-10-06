@@ -389,6 +389,7 @@ G_BEGIN_DECLS
 #define GIMP_ICON_TOOL_PAINTBRUSH           "gimp-tool-paintbrush"
 #define GIMP_ICON_TOOL_PAINT_SELECT         "gimp-tool-paint-select"
 #define GIMP_ICON_TOOL_PATH                 "gimp-tool-path"
+#define GIMP_ICON_TOOL_CORNER_SCULPT        "gimp-tool-corner-sculpt"
 #define GIMP_ICON_TOOL_PENCIL               "gimp-tool-pencil"
 #define GIMP_ICON_TOOL_PERSPECTIVE          "gimp-tool-perspective"
 #define GIMP_ICON_TOOL_PERSPECTIVE_CLONE    "gimp-tool-perspective-clone"

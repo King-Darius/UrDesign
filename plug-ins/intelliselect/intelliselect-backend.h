@@ -1,8 +1,7 @@
 /* GIMP - The GNU Image Manipulation Program
  * Copyright (C) 1995 Spencer Kimball and Peter Mattis
  *
- * path-enums.h
- * Copyright (C) 2006 Simon Budig  <simon@gimp.org>
+ * intelliselect-backend.h
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,32 +19,17 @@
 
 #pragma once
 
+#include "libgimpbase/gimpbase.h"
+#include "core/gimpimage.h"
+#include "core/gimpprogress.h"
 
-typedef enum
-{
-  GIMP_ANCHOR_ANCHOR,
-  GIMP_ANCHOR_CONTROL
-} GimpAnchorType;
+G_BEGIN_DECLS
 
-typedef enum
-{
-  GIMP_ANCHOR_FEATURE_NONE,
-  GIMP_ANCHOR_FEATURE_EDGE,
-  GIMP_ANCHOR_FEATURE_ALIGNED,
-  GIMP_ANCHOR_FEATURE_SYMMETRIC
-} GimpAnchorFeatureType;
+GeglBuffer * gimp_intelliselect_backend_run (GimpImage            *image,
+                                             const gchar          *model_id,
+                                             const gchar          *backend_id,
+                                             GeglBuffer           *stroke_buffer,
+                                             const GeglRectangle  *stroke_bounds,
+                                             GimpProgress         *progress);
 
-typedef enum
-{
-  GIMP_STROKE_EXTEND_SIMPLE,
-  GIMP_STROKE_EXTEND_EDITABLE
-} GimpStrokeExtendMode;
-
-typedef enum
-{
-  GIMP_CORNER_MODE_CHAMFER,
-  GIMP_CORNER_MODE_ROUND,
-  GIMP_CORNER_MODE_INVERTED,
-
-  GIMP_CORNER_MODE_LAST
-} GimpCornerMode;
+G_END_DECLS

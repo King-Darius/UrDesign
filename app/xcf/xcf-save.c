@@ -3488,7 +3488,6 @@ xcf_save_path (XcfInfo      *info,
   const gchar *string;
   GList       *stroke_list;
   GError      *tmp_error = NULL;
-  /* Version of the path format is always 1 for now. */
   guint32      version   = 1;
   guint32      num_strokes;
   guint32      size;
@@ -3507,6 +3506,31 @@ xcf_save_path (XcfInfo      *info,
 
   /* write out the path properties */
   xcf_save_path_props (info, image, path, error);
+
+  /* Determine path version based on stroke metadata */
+  {
+    GList *iter;
+
+    for (iter = g_list_first (path->strokes->head);
+         iter;
+         iter = g_list_next (iter))
+      {
+        GimpStroke *stroke = iter->data;
+        GArray     *corner_specs;
+
+        corner_specs = gimp_stroke_corner_specs_get (stroke);
+
+        if (corner_specs && corner_specs->len > 0)
+          {
+            version = 2;
+            g_array_unref (corner_specs);
+            break;
+          }
+
+        if (corner_specs)
+          g_array_unref (corner_specs);
+      }
+  }
 
   /* Path version */
   xcf_write_int32_check_error (info, &version, 1, ;);
@@ -3589,6 +3613,34 @@ xcf_save_path (XcfInfo      *info,
 
           xcf_write_int32_check_error (info, &type,  1, ;);
           xcf_write_float_check_error (info, coords, num_axes, ;);
+        }
+
+      if (version >= 2)
+        {
+          GArray  *corner_specs;
+          guint32  corner_count;
+          gint     c;
+
+          corner_specs = gimp_stroke_corner_specs_get (stroke);
+          corner_count = corner_specs ? corner_specs->len : 0;
+
+          xcf_write_int32_check_error (info, &corner_count, 1, ;);
+
+          for (c = 0; c < corner_count; c++)
+            {
+              GimpStrokeCorner corner =
+                g_array_index (corner_specs, GimpStrokeCorner, c);
+              guint32 index  = corner.anchor_index;
+              guint32 mode   = corner.mode;
+              gfloat  radius = corner.radius;
+
+              xcf_write_int32_check_error (info, &index, 1, ;);
+              xcf_write_int32_check_error (info, &mode,  1, ;);
+              xcf_write_float_check_error (info, &radius, 1, ;);
+            }
+
+          if (corner_specs)
+            g_array_unref (corner_specs);
         }
 
       g_array_free (control_points, TRUE);

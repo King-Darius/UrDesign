@@ -4049,7 +4049,7 @@ xcf_load_path (XcfInfo   *info,
 
   xcf_read_int32 (info, (guint32 *) &version, 1);
 
-  if (version != 1)
+  if (version != 1 && version != 2)
     {
       gimp_message (info->gimp, G_OBJECT (info->progress),
                     GIMP_MESSAGE_WARNING,
@@ -4141,6 +4141,30 @@ xcf_load_path (XcfInfo   *info,
                              "closed",         closed,
                              "control-points", control_points,
                              NULL);
+
+      if (version >= 2)
+        {
+          guint32 corner_count;
+          gint    c;
+
+          xcf_read_int32 (info, &corner_count, 1);
+
+          for (c = 0; c < (gint) corner_count; c++)
+            {
+              guint32 index;
+              guint32 mode;
+              gfloat  radius;
+
+              xcf_read_int32 (info, &index, 1);
+              xcf_read_int32 (info, &mode,  1);
+              xcf_read_float (info, &radius, 1);
+
+              gimp_stroke_corner_set (stroke,
+                                      (gint) index,
+                                      (GimpCornerMode) mode,
+                                      radius);
+            }
+        }
 
       gimp_path_stroke_add (path, stroke);
 

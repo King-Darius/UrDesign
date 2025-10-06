@@ -29,6 +29,7 @@ complex_plugins_list = [
   { 'name': 'help', },
   { 'name': 'ifs-compose', },
   { 'name': 'imagemap', },
+  { 'name': 'intelliselect', },
   { 'name': 'lighting', },
   { 'name': 'map-object', },
   { 'name': 'metadata', },

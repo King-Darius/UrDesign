@@ -61,8 +61,10 @@
 #include "gimpfreeselecttool.h"
 #include "gimpforegroundselecttool.h"
 #include "gimpfuzzyselecttool.h"
+#include "gimpintelliselecttool.h"
 #include "gimpgegltool.h"
 #include "gimpgradienttool.h"
+#include "gimpcornersculpttool.h"
 #include "gimphandletransformtool.h"
 #include "gimphealtool.h"
 #include "gimpinktool.h"
@@ -70,6 +72,7 @@
 #include "gimplevelstool.h"
 #include "gimpoperationtool.h"
 #include "gimppathtool.h"
+#include "gimpshapefusiontool.h"
 #include "gimpmagnifytool.h"
 #include "gimpmeasuretool.h"
 #include "gimpmovetool.h"
@@ -146,8 +149,9 @@ gimp_tools_init (Gimp *gimp)
     gimp_foreground_select_tool_register,
     gimp_intelli_select_tool_register,
     gimp_paint_select_tool_register,
+    gimp_intelli_select_tool_register,
 
-    /*  path tool */
+    /*  path tools */
 
     gimp_path_tool_register,
     gimp_corner_sculpt_tool_register,

@@ -110,14 +110,20 @@ struct _GimpToolTransformGridPrivate
   gboolean               use_rotation_handle;
   gboolean               dynamic_handle_size;
   gboolean               constrain_move;
+  gboolean               constrain_move_baseline;
   gboolean               constrain_scale;
+  gboolean               constrain_scale_baseline;
   gboolean               constrain_rotate;
+  gboolean               constrain_rotate_baseline;
   gboolean               constrain_shear;
+  gboolean               constrain_shear_baseline;
   gboolean               constrain_perspective;
+  gboolean               constrain_perspective_baseline;
   gboolean               frompivot_scale;
   gboolean               frompivot_shear;
   gboolean               frompivot_perspective;
   gboolean               cornersnap;
+  gboolean               cornersnap_baseline;
   gboolean               fixedpivot;
 
   gboolean               baseline_constrain_move;
@@ -206,6 +212,9 @@ static void     gimp_tool_transform_grid_hover          (GimpToolWidget        *
                                                          GdkModifierType        state,
                                                          gboolean               proximity);
 static void     gimp_tool_transform_grid_leave_notify   (GimpToolWidget        *widget);
+static void     gimp_tool_transform_grid_modifier       (GimpToolWidget        *widget,
+                                                         GdkModifierType        key,
+                                                         gboolean               press);
 static void     gimp_tool_transform_grid_hover_modifier (GimpToolWidget        *widget,
                                                          GdkModifierType        key,
                                                          gboolean               press,
@@ -492,6 +501,8 @@ static void
 gimp_tool_transform_grid_init (GimpToolTransformGrid *grid)
 {
   grid->private = gimp_tool_transform_grid_get_instance_private (grid);
+
+  grid->private->extend_selection_modifier_active = FALSE;
 }
 
 static void
@@ -504,6 +515,13 @@ gimp_tool_transform_grid_constructed (GObject *object)
   gint                          i;
 
   G_OBJECT_CLASS (parent_class)->constructed (object);
+
+  private->constrain_move_baseline         = private->constrain_move;
+  private->constrain_scale_baseline        = private->constrain_scale;
+  private->constrain_rotate_baseline       = private->constrain_rotate;
+  private->constrain_shear_baseline        = private->constrain_shear;
+  private->constrain_perspective_baseline  = private->constrain_perspective;
+  private->cornersnap_baseline             = private->cornersnap;
 
   private->guides = gimp_tool_widget_add_transform_guides (widget,
                                                            &private->transform,
@@ -2192,8 +2210,17 @@ gimp_tool_transform_grid_hover (GimpToolWidget   *widget,
 
   if (handle != GIMP_TRANSFORM_HANDLE_NONE && proximity)
     {
-      gimp_tool_widget_set_status (widget,
-                                   get_friendly_operation_name (handle));
+      const gchar *operation = get_friendly_operation_name (handle);
+      gchar       *status;
+
+      status = gimp_suggest_modifiers (operation,
+                                       gimp_get_extend_selection_mask (),
+                                       _("Hold %s to toggle snapping and proportional transform"),
+                                       NULL,
+                                       NULL);
+
+      gimp_tool_widget_set_status (widget, status);
+      g_free (status);
     }
   else
     {

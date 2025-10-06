@@ -40,8 +40,10 @@ app_tests = [
 #'session-2-8-compatibility-single-window',
   'single-window-mode',
 #'tools',
+  'transform-grid',
   'ui',
   'xcf',
+  'shape-fusion',
 ]
 
 # Prevent parallel builds for the tests
