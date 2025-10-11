@@ -67,6 +67,8 @@
 
 #include "path/gimpvectorlayer.h"
 
+#include "text/gimptextlayer.h"
+
 #include "widgets/gimplayermodebox.h"
 #include "widgets/gimppropwidgets.h"
 #include "widgets/gimpsettingsbox.h"
@@ -231,6 +233,7 @@ gimp_filter_tool_class_init (GimpFilterToolClass *klass)
   tool_class->oper_update    = gimp_filter_tool_oper_update;
   tool_class->cursor_update  = gimp_filter_tool_cursor_update;
   tool_class->options_notify = gimp_filter_tool_options_notify;
+  tool_class->is_destructive = FALSE;
 
   color_tool_class->can_pick = gimp_filter_tool_can_pick_color;
   color_tool_class->pick     = gimp_filter_tool_pick_color;
@@ -429,6 +432,7 @@ gimp_filter_tool_initialize (GimpTool     *tool,
               (g_strcmp0 (operation_name, "gegl:gegl") == 0 &&
                g_getenv ("GIMP_ALLOW_GEGL_GRAPH_LAYER_EFFECT") == NULL) ||
               gimp_item_is_vector_layer (GIMP_ITEM (drawable))          ||
+              gimp_item_is_text_layer (GIMP_ITEM (drawable))            ||
               gimp_item_is_link_layer (GIMP_ITEM (drawable)))
             {
               GParamSpec  *param_spec;
@@ -444,6 +448,7 @@ gimp_filter_tool_initialize (GimpTool     *tool,
                 gtk_check_button_new_with_mnemonic (g_param_spec_get_nick (param_spec));
 
               show_merge = (! gimp_item_is_vector_layer (GIMP_ITEM (drawable)) &&
+                            ! gimp_item_is_text_layer (GIMP_ITEM (drawable))   &&
                             ! gimp_item_is_link_layer (GIMP_ITEM (drawable)));
               gtk_toggle_button_set_active (GTK_TOGGLE_BUTTON (toggle), show_merge);
               gtk_widget_set_sensitive (toggle, FALSE);
@@ -454,6 +459,8 @@ gimp_filter_tool_initialize (GimpTool     *tool,
                 disabled_reason = _("Disabled because filters cannot be merged on vector layers.");
               else if (gimp_item_is_link_layer (GIMP_ITEM (drawable)))
                 disabled_reason = _("Disabled because filters cannot be merged on link layers.");
+              else if (gimp_item_is_text_layer (GIMP_ITEM (drawable)))
+                disabled_reason = _("Disabled because filters cannot be merged on text layers.");
               else
                 disabled_reason = _("Disabled because GEGL Graph is unsafe.\nFor development purpose, "
                                     "set environment variable GIMP_ALLOW_GEGL_GRAPH_LAYER_EFFECT.");
@@ -603,6 +610,7 @@ gimp_filter_tool_control (GimpTool       *tool,
            * non-destructive */
           if (GIMP_IS_GROUP_LAYER (drawable)                   ||
               gimp_item_is_vector_layer (GIMP_ITEM (drawable)) ||
+              gimp_item_is_text_layer (GIMP_ITEM (drawable))   ||
               gimp_item_is_link_layer (GIMP_ITEM (drawable)))
             non_destructive = TRUE;
         }
@@ -1569,6 +1577,7 @@ gimp_filter_tool_create_filter (GimpFilterTool *filter_tool)
   if (gegl_node_has_pad (filter_tool->operation, "aux"))
     merge_filter = TRUE;
   else if (gimp_item_is_vector_layer (GIMP_ITEM (drawable)) ||
+           gimp_item_is_text_layer (GIMP_ITEM (drawable))   ||
            gimp_item_is_link_layer (GIMP_ITEM (drawable)))
     merge_filter = FALSE;
 
