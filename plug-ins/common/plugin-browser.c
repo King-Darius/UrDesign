@@ -36,9 +36,8 @@
 #define PLUG_IN_PROC    "plug-in-plug-in-details"
 #define PLUG_IN_BINARY  "plugin-browser"
 #define PLUG_IN_ROLE    "gimp-plugin-browser"
-#define DBL_LIST_WIDTH  250
-#define DBL_WIDTH       (DBL_LIST_WIDTH + 400)
-#define DBL_HEIGHT      250
+#define DBL_WIDTH       800
+#define DBL_HEIGHT      500
 
 
 enum
@@ -545,7 +544,6 @@ browser_dialog_new (void)
   GtkTreeStore      *tree_store;
   GtkWidget         *list_view;
   GtkWidget         *tree_view;
-  GtkWidget         *parent;
   GtkTreeViewColumn *column;
   GtkCellRenderer   *renderer;
   GtkTreeSelection  *selection;
@@ -562,8 +560,8 @@ browser_dialog_new (void)
                                      _("_Close"), GTK_RESPONSE_CLOSE,
 
                                      NULL);
-  gtk_window_set_default_size (GTK_WINDOW (browser->dialog), DBL_WIDTH,
-                               DBL_WIDTH - DBL_LIST_WIDTH);
+  gtk_window_set_default_size (GTK_WINDOW (browser->dialog),
+                               DBL_WIDTH, DBL_HEIGHT);
 
   g_signal_connect (browser->dialog, "response",
                     G_CALLBACK (browser_dialog_response),
@@ -641,8 +639,6 @@ browser_dialog_new (void)
   gtk_scrolled_window_set_policy (GTK_SCROLLED_WINDOW (scrolled_window),
                                   GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC);
 
-  gtk_widget_set_size_request (list_view, DBL_LIST_WIDTH, DBL_HEIGHT);
-
   selection = gtk_tree_view_get_selection (GTK_TREE_VIEW (list_view));
   gtk_tree_selection_set_mode (selection, GTK_SELECTION_BROWSE);
 
@@ -703,7 +699,6 @@ browser_dialog_new (void)
                                        GTK_SHADOW_IN);
   gtk_scrolled_window_set_policy (GTK_SCROLLED_WINDOW (scrolled_window),
                                   GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC);
-  gtk_widget_set_size_request (tree_view, DBL_LIST_WIDTH, DBL_HEIGHT);
 
   selection = gtk_tree_view_get_selection (GTK_TREE_VIEW (tree_view));
   gtk_tree_selection_set_mode (selection, GTK_SELECTION_BROWSE);
@@ -719,11 +714,6 @@ browser_dialog_new (void)
   gtk_widget_show (tree_view);
   gtk_widget_show (scrolled_window);
   gtk_widget_show (notebook);
-
-  parent = gtk_widget_get_parent (gimp_browser_get_right_vbox (GIMP_BROWSER (browser->browser)));
-  parent = gtk_widget_get_parent (parent);
-
-  gtk_widget_set_size_request (parent, DBL_WIDTH - DBL_LIST_WIDTH, -1);
 
   /* now build the list */
   browser_search (GIMP_BROWSER (browser->browser), "", 0, browser);
